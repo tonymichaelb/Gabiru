@@ -31,12 +31,19 @@ class StatusResponse(BaseModel):
     job_state: JobState
     job_file: Optional[str] = None
     progress: float = Field(default=0.0, ge=0.0, le=1.0)
+    job_line: Optional[int] = Field(default=None, ge=0)
+    job_total_lines: Optional[int] = Field(default=None, ge=1)
     hotend_c: Optional[float] = None
     bed_c: Optional[float] = None
 
 
 class StartJobRequest(BaseModel):
     filename: str
+
+
+class SetTemperatureRequest(BaseModel):
+    hotend_c: Optional[float] = Field(default=None, ge=0.0, le=320.0)
+    bed_c: Optional[float] = Field(default=None, ge=0.0, le=150.0)
 
 
 class WsClientCommand(BaseModel):

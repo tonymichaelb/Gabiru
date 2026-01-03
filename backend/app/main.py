@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any
 
@@ -14,17 +15,33 @@ from serial.tools import list_ports
 
 from .config_store import ConfigStore
 from .gcode_thumbnail import extract_thumbnail
+from .gcode_toolpath import extract_toolpath
 from .job_manager import JobManager
-from .models import ConnectRequest, StartJobRequest, StatusResponse, WsClientCommand, PrinterConnectionState, JobState
+from .models import (
+    ConnectRequest,
+    StartJobRequest,
+    StatusResponse,
+    WsClientCommand,
+    PrinterConnectionState,
+    JobState,
+    SetTemperatureRequest,
+)
 from .serial_manager import SerialManager
 from .settings import get_settings
+from .timelapse_manager import TimelapseManager
 
 settings = get_settings()
 settings.uploads_dir.mkdir(parents=True, exist_ok=True)
+settings.timelapse_dir.mkdir(parents=True, exist_ok=True)
 
 serial_manager = SerialManager()
 job_manager = JobManager(serial_manager=serial_manager, uploads_dir=settings.uploads_dir)
 config_store = ConfigStore(settings.config_path)
+timelapse_manager = TimelapseManager(
+    timelapse_dir=settings.timelapse_dir,
+    interval_s=settings.timelapse_interval_s,
+    fps=settings.timelapse_fps,
+)
 
 
 class WsHub:
@@ -55,12 +72,26 @@ hub = WsHub()
 
 async def _status_broadcast_loop() -> None:
     ticks = 0
+    last_job_state: JobState = JobState.idle
     while True:
         try:
             # Poll temps periodically (lightweight; doesn't wait for ok)
             if serial_manager.is_connected and (ticks % 5 == 0):
                 try:
                     await serial_manager.send("M105")
+                except Exception:
+                    pass
+
+            # Timelapse autostart/stop based on job transitions (optional; best-effort)
+            if settings.timelapse_autostart:
+                try:
+                    cur_state = job_manager.info.state
+                    cur_file = job_manager.info.filename
+                    if cur_state == JobState.printing and last_job_state == JobState.idle and cur_file:
+                        await timelapse_manager.start(label=cur_file)
+                    if cur_state == JobState.idle and last_job_state != JobState.idle and timelapse_manager.info.running:
+                        await timelapse_manager.stop()
+                    last_job_state = cur_state
                 except Exception:
                     pass
 
@@ -89,6 +120,11 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        try:
+            if timelapse_manager.info.running:
+                await timelapse_manager.stop()
+        except Exception:
+            pass
         status_task.cancel()
         try:
             await status_task
@@ -100,6 +136,130 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Gabiru", version="0.2.0", lifespan=lifespan)
+
+
+def _read_build_id() -> str | None:
+    env_build = (os.getenv("GABIRU_BUILD") or os.getenv("GABIRU_VERSION") or "").strip()
+    if env_build:
+        return env_build
+
+    # Best-effort: read git HEAD without invoking subprocess.
+    try:
+        here = Path(__file__).resolve()
+        root = None
+        for p in [here.parent, *here.parents]:
+            if (p / ".git").exists():
+                root = p
+                break
+        if root is None:
+            return None
+        head = (root / ".git" / "HEAD")
+        if not head.exists():
+            return None
+        ref = head.read_text(encoding="utf-8").strip()
+        if ref.startswith("ref:"):
+            ref_path = ref.split(" ", 1)[-1].strip()
+            sha_path = (root / ".git" / ref_path)
+            if sha_path.exists():
+                sha = sha_path.read_text(encoding="utf-8").strip()
+            else:
+                # Fallback to packed-refs
+                packed = root / ".git" / "packed-refs"
+                sha = ""
+                if packed.exists():
+                    for line in packed.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if not line or line.startswith("#") or line.startswith("^"):
+                            continue
+                        parts = line.split(" ")
+                        if len(parts) == 2 and parts[1] == ref_path:
+                            sha = parts[0]
+                            break
+            sha = (sha or "").strip()
+        else:
+            sha = ref
+        if sha and all(c in "0123456789abcdef" for c in sha.lower()[:12]):
+            return sha[:12]
+    except Exception:
+        return None
+    return None
+
+
+@app.get("/api/version")
+async def api_version() -> dict[str, str | None]:
+    return {
+        "version": getattr(app, "version", None),
+        "build": _read_build_id(),
+    }
+
+
+@app.get("/api/timelapse/status")
+async def api_timelapse_status() -> dict[str, Any]:
+    return {
+        "running": timelapse_manager.info.running,
+        "session_dir": timelapse_manager.info.session_dir,
+        "frames": timelapse_manager.info.frames,
+        "label": timelapse_manager.info.label,
+        "last_video": timelapse_manager.info.last_video,
+        "interval_s": settings.timelapse_interval_s,
+        "fps": settings.timelapse_fps,
+    }
+
+
+@app.post("/api/timelapse/start")
+async def api_timelapse_start(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    label = None
+    if payload and isinstance(payload, dict):
+        raw = payload.get("label")
+        if isinstance(raw, str):
+            label = raw.strip()[:120]
+    try:
+        info = await timelapse_manager.start(label=label)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "status": "started",
+        "running": info.running,
+        "session_dir": info.session_dir,
+    }
+
+
+@app.post("/api/timelapse/stop")
+async def api_timelapse_stop() -> dict[str, Any]:
+    try:
+        info = await timelapse_manager.stop()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "status": "stopped",
+        "running": info.running,
+        "frames": info.frames,
+        "last_video": info.last_video,
+    }
+
+
+@app.get("/api/timelapse/videos")
+async def api_timelapse_videos() -> list[dict[str, object]]:
+    return timelapse_manager.list_videos()
+
+
+@app.get("/api/timelapse/video/{name:path}")
+async def api_timelapse_video(name: str) -> FileResponse:
+    try:
+        path = timelapse_manager.resolve_video(name)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid video name")
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Video not found")
+    return FileResponse(path)
+
+
+@app.get("/api/timelapse/live")
+async def api_timelapse_live() -> FileResponse:
+    path = timelapse_manager.latest_frame_path()
+    if path is None or not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="No live frame available")
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
 def _make_status() -> StatusResponse:
@@ -115,6 +275,8 @@ def _make_status() -> StatusResponse:
         job_state=job_manager.info.state,
         job_file=job_manager.info.filename,
         progress=job_manager.info.progress,
+        job_line=job_manager.info.line,
+        job_total_lines=job_manager.info.total_lines,
         hotend_c=serial_manager.state.hotend_c,
         bed_c=serial_manager.state.bed_c,
     )
@@ -196,6 +358,29 @@ async def api_disconnect() -> dict[str, str]:
     return {"status": "disconnected"}
 
 
+@app.post("/api/printer/temperature")
+async def api_set_temperature(req: SetTemperatureRequest) -> dict[str, Any]:
+    if not serial_manager.is_connected:
+        raise HTTPException(status_code=400, detail="Printer not connected")
+
+    if req.hotend_c is None and req.bed_c is None:
+        raise HTTPException(status_code=400, detail="Provide hotend_c and/or bed_c")
+
+    # Use non-blocking set commands to avoid waiting for heat-up (M109/M190).
+    try:
+        if req.hotend_c is not None:
+            # Typical safe range for most machines is <= 300C; model enforces <= 320.
+            await serial_manager.send_and_wait_ok(f"M104 S{req.hotend_c:.0f}")
+        if req.bed_c is not None:
+            await serial_manager.send_and_wait_ok(f"M140 S{req.bed_c:.0f}")
+        # Ask for an updated temperature report
+        await serial_manager.send("M105")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"status": "ok", "hotend_c": req.hotend_c, "bed_c": req.bed_c}
+
+
 @app.get("/api/status", response_model=StatusResponse)
 async def api_status() -> StatusResponse:
     return _make_status()
@@ -240,6 +425,24 @@ async def api_files_thumbnail(filename: str) -> Response:
         raise HTTPException(status_code=404, detail="Thumbnail not found")
 
     return Response(content=thumb.data, media_type=thumb.media_type)
+
+
+@app.get("/api/files/toolpath/{filename}")
+async def api_files_toolpath(filename: str, max_segments: int = 50000) -> dict[str, Any]:
+    path = _resolve_upload(filename)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    max_segments = int(max_segments or 0)
+    if max_segments <= 0:
+        max_segments = 50000
+    if max_segments > 200000:
+        max_segments = 200000
+
+    try:
+        return extract_toolpath(path, max_segments=max_segments)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to parse G-code")
 
 
 @app.post("/api/files/upload")

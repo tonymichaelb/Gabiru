@@ -12,6 +12,9 @@ class Settings:
     autoconnect: bool
     port: Optional[str]
     baudrate: int
+    timelapse_interval_s: float
+    timelapse_fps: int
+    timelapse_autostart: bool
 
     @property
     def data_dir(self) -> Path:
@@ -24,6 +27,10 @@ class Settings:
     @property
     def config_path(self) -> Path:
         return self.data_dir / "config.json"
+
+    @property
+    def timelapse_dir(self) -> Path:
+        return self.data_dir / "timelapse"
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -38,9 +45,15 @@ def get_settings() -> Settings:
     root = Path(__file__).resolve().parents[1]
     port = os.environ.get("GABIRU_PORT")
     baudrate = int(os.environ.get("GABIRU_BAUDRATE") or 115200)
+    timelapse_interval_s = float(os.environ.get("GABIRU_TIMELAPSE_INTERVAL_S") or 10.0)
+    timelapse_fps = int(os.environ.get("GABIRU_TIMELAPSE_FPS") or 30)
+    timelapse_autostart = _env_bool("GABIRU_TIMELAPSE_AUTOSTART", default=False)
     return Settings(
         root_dir=root,
         autoconnect=_env_bool("GABIRU_AUTOCONNECT", default=False),
         port=port,
         baudrate=baudrate,
+        timelapse_interval_s=timelapse_interval_s,
+        timelapse_fps=timelapse_fps,
+        timelapse_autostart=timelapse_autostart,
     )

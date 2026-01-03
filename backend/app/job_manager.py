@@ -14,6 +14,8 @@ class JobInfo:
     state: JobState = JobState.idle
     filename: Optional[str] = None
     progress: float = 0.0
+    line: Optional[int] = None
+    total_lines: Optional[int] = None
 
 
 class JobManager:
@@ -75,8 +77,10 @@ class JobManager:
     async def _run_file(self, path: Path) -> None:
         lines = path.read_text(errors="ignore").splitlines()
         total = max(len(lines), 1)
+        self.info.total_lines = total
 
         for idx, raw in enumerate(lines):
+            self.info.line = idx
             await self._pause_event.wait()
             if self._cancel:
                 break

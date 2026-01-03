@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Gabiru</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/styles.css?v=8" />
 </head>
 <body>
   <main class="wrap">
@@ -13,22 +13,18 @@
       <div class="status" id="connStatus">desconectado</div>
     </header>
 
-    <section class="card">
-      <h2>Conexão</h2>
-      <div class="row">
-        <label>
-          Porta
-          <select id="portSelect"></select>
-        </label>
-        <label>
-          Baudrate
-          <input id="baudInput" type="number" value="115200" min="1200" />
-        </label>
-        <button id="refreshPortsBtn">Atualizar portas</button>
-        <button id="connectBtn">Conectar</button>
-        <button id="disconnectBtn" class="secondary">Desconectar</button>
-      </div>
-    </section>
+    <div class="update-banner" id="updateBanner" style="display:none;">
+      <div class="update-banner-text" id="updateBannerText">Nova atualização disponível.</div>
+      <button type="button" class="secondary" id="updateReloadBtn">Recarregar</button>
+    </div>
+
+    <nav class="tabs" aria-label="Abas">
+      <button type="button" class="tab active" data-tab="print" id="tabPrint">Impressão</button>
+      <button type="button" class="tab" data-tab="motion" id="tabMotion">Movimento</button>
+      <button type="button" class="tab" data-tab="system" id="tabSystem">Sistema</button>
+    </nav>
+
+    <section class="tab-panel" data-tab="print" id="panelPrint">
 
     <section class="card">
       <h2>Arquivos (.gcode)</h2>
@@ -65,6 +61,135 @@
     </section>
 
     <section class="card">
+      <h2>Time-lapse</h2>
+      <div class="row row-timelapse">
+        <button id="tlStartBtn">Iniciar</button>
+        <button id="tlStopBtn" class="secondary">Parar e gerar vídeo</button>
+        <button id="tlRefreshBtn" class="secondary">Atualizar lista</button>
+        <a id="tlLastLink" class="btn-link" href="#" target="_blank" rel="noreferrer">Baixar último</a>
+      </div>
+      <div class="timelapse-live">
+        <div class="label">Ao vivo</div>
+        <img id="tlLiveImg" class="timelapse-live-img" alt="Prévia ao vivo" />
+        <div id="tlLiveHint" class="muted">Inicie o time-lapse para ver a prévia ao vivo.</div>
+      </div>
+      <div class="timelapse-meta" id="tlMeta"></div>
+      <div class="timelapse-list" id="tlList"></div>
+    </section>
+
+    </section>
+
+    <section class="tab-panel hidden" data-tab="motion" id="panelMotion">
+
+    <section class="card">
+      <h2>Movimento</h2>
+
+      <div class="row row-jog-settings">
+        <label>
+          Passo (mm)
+          <select id="jogStep">
+            <option value="0.1">0.1</option>
+            <option value="1" selected>1</option>
+            <option value="10">10</option>
+          </select>
+        </label>
+        <button id="homeBtn">Home (G28)</button>
+        <button id="g29Btn" class="secondary">G29 (Auto level)</button>
+      </div>
+
+      <div class="jog-grid" aria-label="Movimento X e Y">
+        <div></div>
+        <button id="jogYPos" class="secondary">Y+</button>
+        <div></div>
+        <button id="jogXNeg" class="secondary">X-</button>
+        <div class="muted jog-center">XY</div>
+        <button id="jogXPos" class="secondary">X+</button>
+        <div></div>
+        <button id="jogYNeg" class="secondary">Y-</button>
+        <div></div>
+      </div>
+
+      <div class="jog-z" aria-label="Movimento Z">
+        <button id="jogZUp" class="secondary">Z+</button>
+        <button id="jogZDown" class="secondary">Z-</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>PID</h2>
+
+      <div class="row row-pid" aria-label="PID Hotend">
+        <label>
+          Hotend alvo (°C)
+          <input id="pidHotendTemp" type="number" min="0" max="320" step="1" value="200" />
+        </label>
+        <label>
+          Ciclos
+          <input id="pidHotendCycles" type="number" min="1" max="20" step="1" value="5" />
+        </label>
+        <button id="pidHotendBtn">PID Hotend</button>
+      </div>
+
+      <div class="row row-pid" aria-label="PID Mesa">
+        <label>
+          Mesa alvo (°C)
+          <input id="pidBedTemp" type="number" min="0" max="150" step="1" value="60" />
+        </label>
+        <label>
+          Ciclos
+          <input id="pidBedCycles" type="number" min="1" max="20" step="1" value="5" />
+        </label>
+        <button id="pidBedBtn" class="secondary">PID Mesa</button>
+      </div>
+
+      <div class="muted" style="margin-top: 8px; font-size: 12px;">
+        Executa M303 (Marlin). Os resultados aparecem no Terminal.
+      </div>
+    </section>
+
+    </section>
+
+    <section class="tab-panel hidden" data-tab="system" id="panelSystem">
+
+    <section class="card">
+      <h2>Conexão</h2>
+      <div class="row">
+        <label>
+          Porta
+          <select id="portSelect"></select>
+        </label>
+        <label>
+          Baudrate
+          <input id="baudInput" type="number" value="115200" min="1200" />
+        </label>
+        <button id="refreshPortsBtn">Atualizar portas</button>
+        <button id="connectBtn">Conectar</button>
+        <button id="disconnectBtn" class="secondary">Desconectar</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Temperatura (manual)</h2>
+      <div class="row row-temp">
+        <label>
+          Hotend (°C)
+          <input id="hotendSet" type="number" min="0" max="320" step="1" placeholder="Ex.: 200" />
+        </label>
+        <label>
+          Bed (°C)
+          <input id="bedSet" type="number" min="0" max="150" step="1" placeholder="Ex.: 60" />
+        </label>
+        <button id="setTempBtn">Aplicar</button>
+        <button id="hotendOffBtn" class="secondary">Hotend OFF</button>
+        <button id="bedOffBtn" class="secondary">Bed OFF</button>
+        <button id="allOffBtn" class="danger">Tudo OFF</button>
+      </div>
+      <div class="row row-temp-hint">
+        <div class="muted">Dica: usa M104/M140 (não espera aquecer). O status atual aparece em “Hotend/Bed”.</div>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>Terminal</h2>
       <div class="row">
         <input id="cmdInput" placeholder="Ex.: M105" />
@@ -73,8 +198,10 @@
       </div>
       <pre class="terminal" id="terminal"></pre>
     </section>
+
+    </section>
   </main>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=8"></script>
 </body>
 </html>

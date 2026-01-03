@@ -1,12 +1,49 @@
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
-body { margin: 0; font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f6f7f9; color: #111; }
+body { margin: 0; font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f6f7f9; color: #111; }
 .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
 .bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .status { padding: 6px 10px; border-radius: 999px; background: #e9eef5; }
-.card { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin: 12px 0; }
+
+.update-banner {
+	margin: 10px 0 12px;
+	padding: 10px 12px;
+	border: 1px solid #e5e7eb;
+	border-radius: 10px;
+	background: #fafafa;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.update-banner-text { color: #111; }
+
+.tabs {
+	display: flex;
+	gap: 8px;
+	margin: 8px 0 14px;
+}
+
+.tab {
+	padding: 9px 12px;
+	border: 1px solid #d1d5db;
+	border-radius: 999px;
+	background: white;
+	color: #111;
+	cursor: pointer;
+}
+
+.tab.active {
+	background: #111827;
+	color: white;
+	border-color: #111827;
+}
+
+.tab-panel.hidden { display: none; }
+.card { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin: 12px 0; }
 h1 { font-size: 18px; margin: 0; }
-h2 { font-size: 14px; margin: 0 0 10px; }
+h2 { font-size: 14px; margin: 0 0 12px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
 label { display: grid; gap: 4px; }
 input, select { padding: 8px; border: 1px solid #d1d5db; border-radius: 8px; min-width: 220px; }
@@ -14,10 +51,117 @@ button { padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; backg
 button.secondary { background: white; color: #111; }
 button.danger { background: #991b1b; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-link {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 9px 12px;
+	border: 1px solid #d1d5db;
+	border-radius: 8px;
+	background: white;
+	color: #111;
+	text-decoration: none;
+}
+.btn-link:hover { background: #f8fafc; }
+.row-temp label { min-width: 220px; }
+.row-temp-hint { margin-top: 6px; }
+.row-temp-hint .muted { font-size: 12px; }
+
+/* Movimento */
+.row-jog-settings select { min-width: 120px; }
+
+.jog-grid {
+	margin-top: 10px;
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 8px;
+	align-items: center;
+}
+
+.jog-center {
+	text-align: center;
+	border: 1px dashed #e5e7eb;
+	border-radius: 10px;
+	padding: 10px 0;
+}
+
+.jog-z {
+	margin-top: 10px;
+	display: flex;
+	gap: 10px;
+}
+
+.jog-z button { min-width: 120px; }
+
+.timelapse-meta {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-top: 10px;
+}
+
+.timelapse-live {
+	margin-top: 10px;
+	border: 1px solid #e5e7eb;
+	border-radius: 10px;
+	padding: 10px;
+	background: #fff;
+}
+
+.timelapse-live .label {
+	font-size: 12px;
+	color: #6b7280;
+	margin-bottom: 8px;
+}
+
+.timelapse-live-img {
+	width: 100%;
+	max-height: 240px;
+	object-fit: contain;
+	border-radius: 10px;
+	border: 1px solid #e5e7eb;
+	background: #fafafa;
+	display: none;
+}
+
+.timelapse-list {
+	margin-top: 10px;
+	display: grid;
+	gap: 8px;
+}
+
+.timelapse-item {
+	padding: 10px;
+	border: 1px solid #e5e7eb;
+	border-radius: 10px;
+	background: #fafafa;
+	color: #111;
+	text-decoration: none;
+}
+
+.timelapse-item:hover { background: #f8fafc; }
 .kv { padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fafafa; }
 .terminal { height: 260px; overflow: auto; background: #0b1020; color: #d1e7ff; padding: 10px; border-radius: 10px; border: 1px solid #0b1020; }
 
 .muted { color: #6b7280; }
+
+.toolpath-canvas {
+	width: 100%;
+	border-radius: 10px;
+	border: 1px solid #e5e7eb;
+	background: #fff;
+	margin-top: 8px;
+}
+
+.toolpath-controls {
+	margin-top: 8px;
+	display: grid;
+	gap: 6px;
+}
+
+.toolpath-slider {
+	width: 100%;
+}
 
 /* Arquivos (.gcode) */
 .row-upload input[type="file"] {
@@ -116,6 +260,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 	display: grid;
 	place-items: center;
 	min-height: 260px;
+}
+
+.file-preview.has-toolpath {
+	place-items: stretch;
+	align-content: start;
+	gap: 8px;
 }
 
 .preview-img {

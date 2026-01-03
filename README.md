@@ -33,6 +33,36 @@ python3 -m venv .venv
 - Recursos “Chroma/Palette” ficam como ponto de extensão (ainda não implementado).
 - Se a lista de portas estiver vazia, conecte a impressora via USB e clique em “Atualizar portas”.
 
+## Time-lapse
+
+O Gabiru tem um time-lapse simples:
+
+- Captura frames a cada N segundos
+- Gera um `timelapse.mp4` (precisa de `ffmpeg`)
+
+### Requisitos no Raspberry Pi
+
+- `ffmpeg`
+- Uma ferramenta de captura de imagem:
+	- Camera Module: `libcamera-still` (pacote `libcamera-apps`), ou
+	- Webcam USB: `fswebcam`
+
+O instalador do Pi tenta instalar isso automaticamente.
+
+### Como usar
+
+No painel web, use a seção **Time-lapse**:
+
+- **Iniciar**: começa a capturar frames
+- **Parar e gerar vídeo**: para e gera o `timelapse.mp4`
+- **Baixar último** / lista: baixa os vídeos gerados
+
+Configuração via variáveis de ambiente:
+
+- `GABIRU_TIMELAPSE_INTERVAL_S` (padrão: 10)
+- `GABIRU_TIMELAPSE_FPS` (padrão: 30)
+- `GABIRU_TIMELAPSE_AUTOSTART` (padrão: 0) — se `1`, inicia/para junto com o job
+
 ## Raspberry Pi Zero 2 W (deploy)
 
 O Gabiru foi pensado para rodar como serviço (auto-start) no Raspberry Pi.

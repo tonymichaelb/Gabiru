@@ -14,6 +14,11 @@ echo "[1/6] Instalando dependências do sistema..."
 apt-get update -y
 apt-get install -y python3 python3-venv python3-pip git
 
+# Timelapse prerequisites (best-effort; packages vary by distro/release)
+apt-get install -y ffmpeg || true
+apt-get install -y libcamera-apps || true
+apt-get install -y fswebcam || true
+
 echo "[2/6] Criando diretórios..."
 mkdir -p "$APP_DIR"
 

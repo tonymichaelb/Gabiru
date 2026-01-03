@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenvs
+.venv/
+backend/.venv/
+
+# Local state (do not commit printer-specific config / uploads)
+backend/data/uploads/
+backend/data/config.json
+
+# Logs
+*.log

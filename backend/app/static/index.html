@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gabiru</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="bar">
+      <h1>Gabiru</h1>
+      <div class="status" id="connStatus">desconectado</div>
+    </header>
+
+    <section class="card">
+      <h2>Conexão</h2>
+      <div class="row">
+        <label>
+          Porta
+          <select id="portSelect"></select>
+        </label>
+        <label>
+          Baudrate
+          <input id="baudInput" type="number" value="115200" min="1200" />
+        </label>
+        <button id="refreshPortsBtn">Atualizar portas</button>
+        <button id="connectBtn">Conectar</button>
+        <button id="disconnectBtn" class="secondary">Desconectar</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Arquivos (.gcode)</h2>
+      <div class="row row-upload">
+        <input id="uploadInput" type="file" accept=".gcode" />
+        <button id="uploadBtn">Upload</button>
+        <button id="refreshFilesBtn" class="secondary">Atualizar lista</button>
+        <button id="deleteFileBtn" class="danger">Excluir selecionado</button>
+      </div>
+      <div class="file-browser" aria-label="Arquivos G-code">
+        <div class="file-list" id="fileList"></div>
+        <div class="file-preview" id="filePreview">
+          <div class="muted">Selecione um arquivo para ver a prévia.</div>
+        </div>
+      </div>
+
+      <div class="row row-job-controls">
+        <div class="selected-file">
+          <div class="label">Arquivo selecionado</div>
+          <div class="value" id="selectedFile">—</div>
+        </div>
+        <button id="startBtn">Iniciar</button>
+        <button id="pauseBtn" class="secondary">Pausar</button>
+        <button id="resumeBtn" class="secondary">Retomar</button>
+        <button id="cancelBtn" class="danger">Cancelar</button>
+      </div>
+      <div class="row row-job-status">
+        <div class="kv"><span>Job:</span> <span id="jobFile">—</span></div>
+        <div class="kv"><span>Estado:</span> <span id="jobState">—</span></div>
+        <div class="kv"><span>Progresso:</span> <span id="jobProgress">0%</span></div>
+        <div class="kv"><span>Hotend:</span> <span id="hotend">—</span></div>
+        <div class="kv"><span>Bed:</span> <span id="bed">—</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Terminal</h2>
+      <div class="row">
+        <input id="cmdInput" placeholder="Ex.: M105" />
+        <button id="sendBtn">Enviar</button>
+        <button id="pollBtn" class="secondary">Status</button>
+      </div>
+      <pre class="terminal" id="terminal"></pre>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

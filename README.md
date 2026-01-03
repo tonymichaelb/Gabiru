@@ -1,0 +1,97 @@
+# Gabiru
+
+MVP de gerenciamento de impressora 3D (estilo OctoPrint): conexão serial, upload e execução de G-code, status em tempo real via WebSocket.
+
+## Rodar (dev)
+
+1) Crie/ative um ambiente Python (3.10+ recomendado).
+
+No macOS, o caminho mais previsível é usar um `venv` dentro de `backend/`.
+
+2) Crie o `venv` e instale dependências:
+
+```bash
+cd backend
+python3 -m venv .venv
+./.venv/bin/python -m pip install -U pip
+./.venv/bin/python -m pip install -r requirements.txt
+```
+
+3) Inicie o servidor:
+
+```bash
+./.venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+4) Abra no navegador:
+
+- http://localhost:8000
+
+## Observações
+
+- Este MVP implementa um fluxo básico de streaming de G-code aguardando `ok`.
+- Recursos “Chroma/Palette” ficam como ponto de extensão (ainda não implementado).
+- Se a lista de portas estiver vazia, conecte a impressora via USB e clique em “Atualizar portas”.
+
+## Raspberry Pi Zero 2 W (deploy)
+
+O Gabiru foi pensado para rodar como serviço (auto-start) no Raspberry Pi.
+
+1) No Pi, clone/copie este repositório.
+2) Rode o instalador (como root):
+
+```bash
+sudo bash deploy/pi/install.sh
+```
+
+3) Acesse no navegador:
+
+- `http://<ip-do-pi>:8000`
+
+### Auto-update (toda vez que você subir atualização)
+
+O instalador ativa um `systemd timer` que roda periodicamente e faz:
+
+- `git pull` em `/opt/gabiru`
+- reinstala dependências (se necessário)
+- reinicia o `gabiru.service`
+
+Por padrão ele verifica a cada ~5 minutos.
+
+Comandos úteis no Pi:
+
+```bash
+sudo systemctl status gabiru-update.timer
+sudo journalctl -u gabiru-update.service -n 200 --no-pager
+```
+
+Se o seu repositório for privado, você vai precisar configurar autenticação no Pi (ex.: deploy key ou token). Para repo público, funciona direto.
+
+## Publicar no GitHub
+
+Repositório alvo:
+
+- https://github.com/tonymichaelb/Gabiru.git
+
+No seu mac (na raiz do projeto):
+
+```bash
+git init
+git add -A
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/tonymichaelb/Gabiru.git
+git push -u origin main
+```
+
+### Auto-connect
+
+O serviço já vem com `GABIRU_AUTOCONNECT=1` em [deploy/pi/gabiru.service](deploy/pi/gabiru.service).
+
+- Se você já conectou uma vez pela UI, ele vai reutilizar a última porta/baudrate salvos em `backend/data/config.json`.
+- Opcionalmente, você pode fixar a porta/baudrate editando o unit file e reiniciando o serviço:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart gabiru.service
+```

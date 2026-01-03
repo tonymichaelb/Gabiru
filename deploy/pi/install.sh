@@ -40,7 +40,7 @@ python3 -m venv .venv
 
 echo "[5/6] Instalando systemd units..."
 install -m 0644 "$APP_DIR/deploy/pi/gabiru.service" /etc/systemd/system/gabiru.service
-install -m 0755 "$APP_DIR/deploy/pi/gabiru-update.sh" "$APP_DIR/deploy/pi/gabiru-update.sh"
+chmod 0755 "$APP_DIR/deploy/pi/gabiru-update.sh" || true
 install -m 0644 "$APP_DIR/deploy/pi/gabiru-update.service" /etc/systemd/system/gabiru-update.service
 install -m 0644 "$APP_DIR/deploy/pi/gabiru-update.timer" /etc/systemd/system/gabiru-update.timer
 systemctl daemon-reload

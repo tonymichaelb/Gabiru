@@ -80,8 +80,7 @@ let selectedFilename = "";
 
 let lastStatus;
 
-let initialBuild;
-let initialVersion;
+let updateBaselineKey;
 
 let toolpathState = {
   filename: "",
@@ -170,17 +169,13 @@ async function startUpdateWatcher() {
       const ver = v && typeof v === "object" ? v.version : null;
       const build = v && typeof v === "object" ? v.build : null;
 
-      if (initialBuild === undefined && initialVersion === undefined) {
-        initialBuild = build;
-        initialVersion = ver;
+      const key = `${ver == null ? "" : String(ver)}|${build == null ? "" : String(build)}`;
+      if (updateBaselineKey === undefined) {
+        updateBaselineKey = key;
         return;
       }
 
-      const changed =
-        (build != null && initialBuild != null && String(build) !== String(initialBuild)) ||
-        (ver != null && initialVersion != null && String(ver) !== String(initialVersion));
-
-      if (changed) {
+      if (key !== updateBaselineKey) {
         showUpdateBanner({ version: ver, build });
       }
     } catch {

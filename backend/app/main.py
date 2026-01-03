@@ -4,6 +4,7 @@ import asyncio
 import os
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 from contextlib import asynccontextmanager
 
@@ -138,7 +139,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Gabiru", version="0.2.0", lifespan=lifespan)
 
 
-def _read_build_id() -> str | None:
+def _read_build_id() -> Optional[str]:
     env_build = (os.getenv("GABIRU_BUILD") or os.getenv("GABIRU_VERSION") or "").strip()
     if env_build:
         return env_build
@@ -186,7 +187,7 @@ def _read_build_id() -> str | None:
 
 
 @app.get("/api/version")
-async def api_version() -> dict[str, str | None]:
+async def api_version() -> dict[str, Optional[str]]:
     return {
         "version": getattr(app, "version", None),
         "build": _read_build_id(),
@@ -207,7 +208,7 @@ async def api_timelapse_status() -> dict[str, Any]:
 
 
 @app.post("/api/timelapse/start")
-async def api_timelapse_start(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+async def api_timelapse_start(payload: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     label = None
     if payload and isinstance(payload, dict):
         raw = payload.get("label")

@@ -91,7 +91,37 @@ let toolpathState = {
   layerPinned: false,
   jobLine: null,
   zoom: 1,
+  _animRaf: null,
+  _animOn: false,
 };
+
+function setToolpathAnimation(on) {
+  const want = !!on;
+  if (toolpathState._animOn === want) return;
+  toolpathState._animOn = want;
+
+  if (!want) {
+    if (toolpathState._animRaf) {
+      cancelAnimationFrame(toolpathState._animRaf);
+      toolpathState._animRaf = null;
+    }
+    // Draw once in a stable state.
+    redrawToolpath();
+    return;
+  }
+
+  const tick = (t) => {
+    if (!toolpathState._animOn) return;
+    if (!toolpathState.data || !toolpathState.canvas) return;
+    if (document.hidden) {
+      toolpathState._animRaf = requestAnimationFrame(tick);
+      return;
+    }
+    redrawToolpath(t);
+    toolpathState._animRaf = requestAnimationFrame(tick);
+  };
+  toolpathState._animRaf = requestAnimationFrame(tick);
+}
 
 function setActiveTab(name) {
   const isPrint = name === "print";
@@ -341,6 +371,8 @@ async function renderGcodePreview({ filename, thumbUrl }) {
     layerPinned: false,
     jobLine: null,
     zoom: 1,
+    _animRaf: null,
+    _animOn: false,
   };
 
   const thumb = document.createElement("img");
@@ -421,6 +453,7 @@ async function renderGcodePreview({ filename, thumbUrl }) {
       hint.textContent = "Sem visualização (toolpath/thumbnail).";
     }
     filePreview.classList.remove("has-toolpath");
+    setToolpathAnimation(false);
     return;
   }
 
@@ -429,6 +462,7 @@ async function renderGcodePreview({ filename, thumbUrl }) {
     label.remove();
     hint.textContent = "Sem movimentos XY para visualizar.";
     filePreview.classList.remove("has-toolpath");
+    setToolpathAnimation(false);
     return;
   }
 
@@ -485,6 +519,19 @@ async function renderGcodePreview({ filename, thumbUrl }) {
   updateToolpathLayerLabel();
   updateToolpathZoomLabel();
   redrawToolpath();
+
+  // Auto-animate only during an active print of this file.
+  try {
+    const anim =
+      lastStatus &&
+      lastStatus.job_file &&
+      String(lastStatus.job_file) === String(filename) &&
+      lastStatus.job_state === "printing" &&
+      lastStatus.job_line != null;
+    setToolpathAnimation(!!anim);
+  } catch {
+    setToolpathAnimation(false);
+  }
 }
 
 function pickDefaultLayerIndex(data) {
@@ -551,16 +598,18 @@ function findLayerForLine(layers, line) {
   return best;
 }
 
-function redrawToolpath() {
+function redrawToolpath(timeMs) {
   if (!toolpathState.data || !toolpathState.canvas) return;
   drawToolpath(toolpathState.canvas, toolpathState.data, {
     layer: toolpathState.layerIndex,
     uptoLine: toolpathState.jobLine,
     zoom: toolpathState.zoom,
+    timeMs,
+    animateHead: toolpathState._animOn,
   });
 }
 
-function drawToolpath(canvas, data, { layer, uptoLine, zoom } = {}) {
+function drawToolpath(canvas, data, { layer, uptoLine, zoom, timeMs, animateHead } = {}) {
   const segsAll = Array.isArray(data.segments) ? data.segments : [];
   const layerIdx = layer == null ? null : Number(layer);
 
@@ -645,6 +694,7 @@ function drawToolpath(canvas, data, { layer, uptoLine, zoom } = {}) {
   const extrRest = hasPath2D ? new Path2D() : [];
 
   let lastPoint = null;
+  let lastSeg = null;
 
   for (const s of segs) {
     if (layerIdx != null && Number(s.layer ?? 0) !== layerIdx) continue;
@@ -668,7 +718,10 @@ function drawToolpath(canvas, data, { layer, uptoLine, zoom } = {}) {
       p.push([x1, y1, x2, y2]);
     }
 
-    if (isPrinted) lastPoint = { x: x2, y: y2 };
+    if (isPrinted) {
+      lastPoint = { x: x2, y: y2 };
+      lastSeg = { x1, y1, x2, y2, isExtr };
+    }
   }
 
   const strokeSegments = (segments, { width, color }) => {
@@ -696,10 +749,25 @@ function drawToolpath(canvas, data, { layer, uptoLine, zoom } = {}) {
   strokeSegments(travelPrinted, { width: 1.0, color: "#d1d5db" });
   strokeSegments(extrPrinted, { width: 2.2, color: "#111827" });
 
-  if (lastPoint) {
+  const t = Number(timeMs);
+  const canAnimate = !!animateHead && lastSeg && Number.isFinite(t);
+
+  if (canAnimate) {
+    // Move a toolhead marker along the last printed segment.
+    const dur = 700; // ms
+    const phase = ((t % dur) / dur + 1) % 1;
+    const hx = lastSeg.x1 + (lastSeg.x2 - lastSeg.x1) * phase;
+    const hy = lastSeg.y1 + (lastSeg.y2 - lastSeg.y1) * phase;
+
+    ctx.fillStyle = lastSeg.isExtr ? "#991b1b" : "#6b7280";
+    ctx.beginPath();
+    ctx.arc(hx, hy, lastSeg.isExtr ? 4.2 : 3.4, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (lastPoint) {
+    // Static marker when not animating.
     ctx.fillStyle = "#991b1b";
     ctx.beginPath();
-    ctx.arc(lastPoint.x, lastPoint.y, 3.5, 0, Math.PI * 2);
+    ctx.arc(lastPoint.x, lastPoint.y, 3.8, 0, Math.PI * 2);
     ctx.fill();
   }
 }
@@ -767,6 +835,23 @@ function renderStatus(s) {
     }
   } catch {
     // ignore
+  }
+
+  // Animate only while actively printing the selected file.
+  try {
+    const anim =
+      toolpathState.data &&
+      toolpathState.canvas &&
+      toolpathState.filename &&
+      selectedFilename &&
+      toolpathState.filename === selectedFilename &&
+      s.job_file &&
+      String(s.job_file) === String(selectedFilename) &&
+      s.job_state === "printing" &&
+      s.job_line != null;
+    setToolpathAnimation(!!anim);
+  } catch {
+    setToolpathAnimation(false);
   }
 }
 

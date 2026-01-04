@@ -26,12 +26,22 @@ fi
 
 is_wifi_connected() {
   # Example line: wlan0:wifi:connected:MySSID
-  nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev status | grep -q "^${IFACE}:wifi:connected:" \
-    && ! nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev status | grep -q "^${IFACE}:wifi:connected:${AP_CONN_NAME}$"
+  # Some NM versions report "connected (externally)".
+  local conn_name
+  conn_name="$(
+    nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev status \
+      | awk -F: -v iface="${IFACE}" '$1==iface && $2=="wifi" && $3 ~ /^connected/ {print $4; exit 0} END {exit 1}'
+  )" || return 1
+
+  [[ -n "${conn_name}" ]] && [[ "${conn_name}" != "${AP_CONN_NAME}" ]]
 }
 
 is_hotspot_active() {
-  nmcli -t -f NAME,DEVICE,TYPE,STATE con show --active | grep -q "^${AP_CONN_NAME}:${IFACE}:802-11-wireless:activated$"
+  nmcli -t -f NAME,DEVICE,TYPE,STATE con show --active | grep -Eq "^${AP_CONN_NAME}:${IFACE}:(wifi|802-11-wireless):activated$"
+}
+
+ensure_wifi_radio_on() {
+  nmcli radio wifi on >/dev/null 2>&1 || true
 }
 
 start_hotspot() {
@@ -40,11 +50,19 @@ start_hotspot() {
   fi
 
   log "starting hotspot SSID=${AP_SSID}"
+
+  ensure_wifi_radio_on
+
   nmcli con down "${AP_CONN_NAME}" >/dev/null 2>&1 || true
   nmcli con delete "${AP_CONN_NAME}" >/dev/null 2>&1 || true
 
   # nmcli will create a shared connection with DHCP/NAT.
-  nmcli dev wifi hotspot ifname "${IFACE}" ssid "${AP_SSID}" password "${AP_PASS}" name "${AP_CONN_NAME}" >/dev/null
+  local out
+  if ! out="$(nmcli dev wifi hotspot ifname "${IFACE}" ssid "${AP_SSID}" password "${AP_PASS}" name "${AP_CONN_NAME}" 2>&1)"; then
+    log "hotspot failed: ${out}"
+    return 1
+  fi
+  log "hotspot started: ${out}"
 }
 
 stop_hotspot() {

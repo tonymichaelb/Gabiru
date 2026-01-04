@@ -50,6 +50,29 @@ class WifiManager:
         # nmcli escapes ':' in terse mode, but parsing escapes correctly is fiddly; a tab
         # separator keeps parsing straightforward and robust.
         self._nmcli_sep = "\t"
+        self._nmcli_separator_supported = True
+
+    async def _run_nmcli_terse(self, *args: str, timeout_s: float = 20.0) -> tuple[int, str, str]:
+        if self._nmcli_separator_supported:
+            rc, out, err = await self._run_nmcli(
+                "-t",
+                "--separator",
+                self._nmcli_sep,
+                *args,
+                timeout_s=timeout_s,
+            )
+            if rc == 0:
+                return rc, out, err
+
+            # Some older nmcli builds don't support --separator.
+            err_l = (err or "").lower()
+            if "separator" in err_l and ("unknown" in err_l or "invalid" in err_l or "unrecognized" in err_l):
+                self._nmcli_separator_supported = False
+            else:
+                # Fail fast for non-separator-related errors.
+                return rc, out, err
+
+        return await self._run_nmcli("-t", *args, timeout_s=timeout_s)
 
     def is_available(self) -> bool:
         return bool(shutil.which("nmcli"))
@@ -113,10 +136,7 @@ class WifiManager:
 
         # nmcli -t keeps output easy to parse.
         # Example: wlan0:wifi:connected:MySSID
-        rc, out, _ = await self._run_nmcli(
-            "-t",
-            "--separator",
-            self._nmcli_sep,
+        rc, out, _ = await self._run_nmcli_terse(
             "-f",
             "DEVICE,TYPE,STATE,CONNECTION",
             "dev",
@@ -160,10 +180,7 @@ class WifiManager:
             return []
 
         # Use --rescan yes to refresh results when possible.
-        rc, out, err = await self._run_nmcli(
-            "-t",
-            "--separator",
-            self._nmcli_sep,
+        rc, out, err = await self._run_nmcli_terse(
             "-f",
             "SSID,SIGNAL,SECURITY",
             "dev",
@@ -177,10 +194,7 @@ class WifiManager:
         )
         if rc != 0:
             # Some NetworkManager versions reject --rescan; retry without it.
-            rc, out, err = await self._run_nmcli(
-                "-t",
-                "--separator",
-                self._nmcli_sep,
+            rc, out, err = await self._run_nmcli_terse(
                 "-f",
                 "SSID,SIGNAL,SECURITY",
                 "dev",
@@ -220,10 +234,7 @@ class WifiManager:
             return None
 
         # Prefer a fresh scan when possible.
-        rc, out, err = await self._run_nmcli(
-            "-t",
-            "--separator",
-            self._nmcli_sep,
+        rc, out, err = await self._run_nmcli_terse(
             "-f",
             "SSID,SECURITY",
             "dev",
@@ -236,10 +247,7 @@ class WifiManager:
             timeout_s=30.0,
         )
         if rc != 0:
-            rc, out, err = await self._run_nmcli(
-                "-t",
-                "--separator",
-                self._nmcli_sep,
+            rc, out, err = await self._run_nmcli_terse(
                 "-f",
                 "SSID,SECURITY",
                 "dev",

@@ -145,7 +145,7 @@ async def lifespan(_: FastAPI):
         await serial_manager.disconnect()
 
 
-app = FastAPI(title="Gabiru", version="0.2.8", lifespan=lifespan)
+app = FastAPI(title="Gabiru", version="0.2.9", lifespan=lifespan)
 
 
 def _read_build_id() -> Optional[str]:
@@ -256,7 +256,10 @@ async def api_wifi_scan() -> dict[str, Any]:
     st = await wifi_manager.get_status()
     if not st.available:
         raise HTTPException(status_code=400, detail="Wi-Fi management unavailable (need nmcli)")
-    nets = await wifi_manager.scan()
+    try:
+        nets = await wifi_manager.scan()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {
         "networks": [
             {"ssid": n.ssid, "signal": n.signal, "security": n.security}

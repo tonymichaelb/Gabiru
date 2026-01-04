@@ -155,6 +155,10 @@ function setActiveTab(name) {
   panelPrint.classList.toggle("hidden", !isPrint);
   panelMotion.classList.toggle("hidden", !isMotion);
   panelSystem.classList.toggle("hidden", !isSystem);
+
+  // Live preview is shown on the Print tab.
+  if (isPrint) startLivePreview();
+  else stopLivePreview();
 }
 
 tabPrint.onclick = () => setActiveTab("print");
@@ -1068,12 +1072,31 @@ async function refreshTimelapse() {
 let liveTimer;
 function startLivePreview() {
   if (liveTimer) return;
+  let failCount = 0;
+
+  // If the camera isn't available, show the hint instead of a broken image.
+  if (tlLiveImg) {
+    tlLiveImg.onerror = () => {
+      failCount += 1;
+      tlLiveImg.style.display = "none";
+      if (tlLiveHint) {
+        tlLiveHint.style.display = "block";
+        tlLiveHint.textContent = "Câmera indisponível. Verifique libcamera/fswebcam e permissões.";
+      }
+      if (failCount >= 3) stopLivePreview();
+    };
+
+    tlLiveImg.onload = () => {
+      failCount = 0;
+      tlLiveImg.style.display = "block";
+      if (tlLiveHint) tlLiveHint.style.display = "none";
+    };
+  }
+
   const tick = async () => {
     try {
       const url = `/api/timelapse/live?ts=${Date.now()}`;
       tlLiveImg.src = url;
-      tlLiveImg.style.display = "block";
-      tlLiveHint.style.display = "none";
     } catch {
       // ignore
     }

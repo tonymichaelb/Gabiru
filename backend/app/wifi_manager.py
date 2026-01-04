@@ -298,6 +298,56 @@ class WifiManager:
 
         return saved
 
+    async def stop_hotspot(self) -> bool:
+        """Explicitly stop the hotspot connection."""
+        if not self.is_available():
+            return False
+        rc, _, _ = await self._run_nmcli("con", "down", self.hotspot_conn_name, timeout_s=10.0)
+        return rc == 0
+
+    async def start_hotspot(self) -> bool:
+        """Explicitly start the hotspot connection."""
+        if not self.is_available():
+            return False
+        
+        # Ensure Wi-Fi radio is on
+        await self._run_nmcli("radio", "wifi", "on", timeout_s=10.0)
+        
+        # Delete and recreate hotspot to ensure clean state
+        await self._run_nmcli("con", "delete", self.hotspot_conn_name, timeout_s=10.0)
+        
+        rc, out, err = await self._run_nmcli(
+            "dev",
+            "wifi",
+            "hotspot",
+            "ifname",
+            self.iface,
+            "ssid",
+            self.hotspot_ssid,
+            "password",
+            "chroma-setup",
+            "con-name",
+            self.hotspot_conn_name,
+            timeout_s=20.0,
+        )
+        if rc != 0:
+            # Fallback: try with "name" instead of "con-name"
+            rc, _, _ = await self._run_nmcli(
+                "dev",
+                "wifi",
+                "hotspot",
+                "ifname",
+                self.iface,
+                "ssid",
+                self.hotspot_ssid,
+                "password",
+                "chroma-setup",
+                "name",
+                self.hotspot_conn_name,
+                timeout_s=20.0,
+            )
+        return rc == 0
+
     async def _get_security_for_ssid(self, ssid: str) -> Optional[str]:
         target = (ssid or "").strip()
         if not target:

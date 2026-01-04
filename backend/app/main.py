@@ -278,6 +278,30 @@ async def api_wifi_scan() -> dict[str, Any]:
     }
 
 
+@app.post("/api/wifi/hotspot/disable")
+async def api_wifi_hotspot_disable() -> dict[str, str]:
+    """Explicitly disable hotspot to allow Wi-Fi connection attempts."""
+    try:
+        ok = await wifi_manager.stop_hotspot()
+        if ok:
+            return {"status": "hotspot stopped"}
+        return {"status": "failed to stop hotspot"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/wifi/hotspot/enable")
+async def api_wifi_hotspot_enable() -> dict[str, str]:
+    """Explicitly enable hotspot."""
+    try:
+        ok = await wifi_manager.start_hotspot()
+        if ok:
+            return {"status": "hotspot started"}
+        return {"status": "failed to start hotspot"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/wifi/connect")
 async def api_wifi_connect(req: WifiConnectRequest) -> dict[str, str]:
     st = await wifi_manager.get_status()

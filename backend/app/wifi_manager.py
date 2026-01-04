@@ -46,6 +46,11 @@ class WifiManager:
         self.hotspot_ssid = hotspot_ssid
         self.connect_lock_path = connect_lock_path
 
+        # Use a separator that is extremely unlikely to appear in SSIDs/connection names.
+        # nmcli escapes ':' in terse mode, but parsing escapes correctly is fiddly; a tab
+        # separator keeps parsing straightforward and robust.
+        self._nmcli_sep = "\t"
+
     def is_available(self) -> bool:
         return bool(shutil.which("nmcli"))
 
@@ -108,10 +113,18 @@ class WifiManager:
 
         # nmcli -t keeps output easy to parse.
         # Example: wlan0:wifi:connected:MySSID
-        rc, out, _ = await self._run_nmcli("-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "dev", "status")
+        rc, out, _ = await self._run_nmcli(
+            "-t",
+            "--separator",
+            self._nmcli_sep,
+            "-f",
+            "DEVICE,TYPE,STATE,CONNECTION",
+            "dev",
+            "status",
+        )
         if rc == 0:
             for line in out.splitlines():
-                parts = line.split(":")
+                parts = line.split(self._nmcli_sep)
                 if len(parts) < 4:
                     continue
                 dev, typ, state, conn = parts[0], parts[1], parts[2], parts[3]
@@ -149,6 +162,8 @@ class WifiManager:
         # Use --rescan yes to refresh results when possible.
         rc, out, err = await self._run_nmcli(
             "-t",
+            "--separator",
+            self._nmcli_sep,
             "-f",
             "SSID,SIGNAL,SECURITY",
             "dev",
@@ -164,6 +179,8 @@ class WifiManager:
             # Some NetworkManager versions reject --rescan; retry without it.
             rc, out, err = await self._run_nmcli(
                 "-t",
+                "--separator",
+                self._nmcli_sep,
                 "-f",
                 "SSID,SIGNAL,SECURITY",
                 "dev",
@@ -180,7 +197,7 @@ class WifiManager:
         nets: list[WifiNetwork] = []
         for line in out.splitlines():
             # Format: SSID:SIGNAL:SECURITY (SSID may be empty)
-            parts = line.split(":")
+            parts = line.split(self._nmcli_sep, 2)
             if len(parts) < 3:
                 continue
             ssid = parts[0].strip()
@@ -205,6 +222,8 @@ class WifiManager:
         # Prefer a fresh scan when possible.
         rc, out, err = await self._run_nmcli(
             "-t",
+            "--separator",
+            self._nmcli_sep,
             "-f",
             "SSID,SECURITY",
             "dev",
@@ -219,6 +238,8 @@ class WifiManager:
         if rc != 0:
             rc, out, err = await self._run_nmcli(
                 "-t",
+                "--separator",
+                self._nmcli_sep,
                 "-f",
                 "SSID,SECURITY",
                 "dev",
@@ -232,7 +253,7 @@ class WifiManager:
             return None
 
         for line in out.splitlines():
-            parts = line.split(":")
+            parts = line.split(self._nmcli_sep, 1)
             if len(parts) < 2:
                 continue
             line_ssid = parts[0].strip()
@@ -255,6 +276,61 @@ class WifiManager:
         sec = await self._get_security_for_ssid(target)
         if sec and sec.lower() not in {"open", "--"} and not pw:
             raise ValueError("password is required for this Wi‑Fi network")
+
+        async def connect_via_profile(*, conn_ssid: str, conn_password: str) -> None:
+            """Create/update a per-SSID connection profile and bring it up.
+
+            This avoids nmcli prompting for secrets (which it cannot do non-interactively)
+            and works around some NM variants that don't infer key-mgmt reliably.
+            """
+
+            conn_name = self._make_client_conn_name(conn_ssid)
+
+            # Best-effort cleanup if it already exists.
+            await self._run_nmcli("con", "delete", conn_name, timeout_s=10.0)
+
+            rc2, _, err2 = await self._run_nmcli(
+                "con",
+                "add",
+                "type",
+                "wifi",
+                "ifname",
+                self.iface,
+                "con-name",
+                conn_name,
+                "ssid",
+                conn_ssid,
+                timeout_s=20.0,
+            )
+            if rc2 != 0:
+                raise RuntimeError((err2 or "failed to create wifi connection").strip())
+
+            # Store WPA2 PSK to avoid interactive prompts.
+            if conn_password:
+                await self._run_nmcli(
+                    "con",
+                    "modify",
+                    conn_name,
+                    "wifi-sec.key-mgmt",
+                    "wpa-psk",
+                    timeout_s=10.0,
+                )
+                await self._run_nmcli(
+                    "con",
+                    "modify",
+                    conn_name,
+                    "wifi-sec.psk",
+                    conn_password,
+                    timeout_s=10.0,
+                )
+
+            # Ensure DHCP.
+            await self._run_nmcli("con", "modify", conn_name, "ipv4.method", "auto", timeout_s=10.0)
+            await self._run_nmcli("con", "modify", conn_name, "ipv6.method", "auto", timeout_s=10.0)
+
+            rc3, _, err3 = await self._run_nmcli("con", "up", conn_name, timeout_s=75.0)
+            if rc3 != 0:
+                raise RuntimeError((err3 or "wifi connect failed").strip())
 
         # Prevent the hotspot watchdog from restarting the AP while we attempt to connect.
         # This is important because bringing up a client connection temporarily drops AP mode.
@@ -282,59 +358,34 @@ class WifiManager:
                 return
 
             msg = (err or out or "").strip()
+            msg_l = msg.lower()
+
+            # If NM decided the network is secured but we didn't provide secrets, fail clearly.
+            if (
+                "secrets were required" in msg_l
+                or "nmcli cannot ask" in msg_l
+                or "802-11-wireless-security.psk" in msg_l
+            ) and not pw:
+                raise ValueError("password is required for this WiFi network")
 
             # Some NetworkManager builds (notably on certain Debian/RPi images) fail to
             # infer key-mgmt for WPA2 networks when using `dev wifi connect`.
             # Fallback: create a persistent connection profile and bring it up.
             if "802-11-wireless-security.key-mgmt" in msg and "property is missing" in msg:
-                conn_name = self._make_client_conn_name(target)
+                if not pw:
+                    raise ValueError("password is required for this WiFi network")
+                await connect_via_profile(conn_ssid=target, conn_password=pw)
+                return
 
-                # Best-effort cleanup if it already exists.
-                await self._run_nmcli("con", "delete", conn_name, timeout_s=10.0)
-
-                rc2, _, err2 = await self._run_nmcli(
-                    "con",
-                    "add",
-                    "type",
-                    "wifi",
-                    "ifname",
-                    self.iface,
-                    "con-name",
-                    conn_name,
-                    "ssid",
-                    target,
-                    timeout_s=20.0,
-                )
-                if rc2 != 0:
-                    raise RuntimeError((err2 or "failed to create wifi connection").strip())
-
-                pw = (password or "").strip()
-                if pw:
-                    await self._run_nmcli(
-                        "con",
-                        "modify",
-                        conn_name,
-                        "wifi-sec.key-mgmt",
-                        "wpa-psk",
-                        timeout_s=10.0,
-                    )
-                    await self._run_nmcli(
-                        "con",
-                        "modify",
-                        conn_name,
-                        "wifi-sec.psk",
-                        pw,
-                        timeout_s=10.0,
-                    )
-
-                # Ensure DHCP.
-                await self._run_nmcli("con", "modify", conn_name, "ipv4.method", "auto", timeout_s=10.0)
-                await self._run_nmcli("con", "modify", conn_name, "ipv6.method", "auto", timeout_s=10.0)
-
-                rc3, _, err3 = await self._run_nmcli("con", "up", conn_name, timeout_s=75.0)
-                if rc3 != 0:
-                    raise RuntimeError((err3 or "wifi connect failed").strip())
-
+            # Another common failure mode: NM creates/activates a connection but can't prompt
+            # for secrets in non-interactive mode. If we have a password, switch to the
+            # profile-based approach so the PSK is present.
+            if (
+                "secrets were required" in msg_l
+                or "nmcli cannot ask" in msg_l
+                or "802-11-wireless-security.psk" in msg_l
+            ) and pw:
+                await connect_via_profile(conn_ssid=target, conn_password=pw)
                 return
 
             raise RuntimeError(msg or "wifi connect failed")

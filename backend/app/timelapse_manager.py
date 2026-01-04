@@ -120,12 +120,12 @@ class TimelapseManager:
 
     async def _capture_frame(self, tool: str, out: Path) -> None:
         if tool in ("rpicam-still", "libcamera-still"):
-            # -n: no preview, -t 1: short timeout, -o: output file
+            # -n: no preview, -t: timeout (ms). Too small can cause intermittent failures.
             proc = await asyncio.create_subprocess_exec(
                 tool,
                 "-n",
                 "-t",
-                "1",
+                "1000",
                 "-o",
                 str(out),
                 stdout=asyncio.subprocess.DEVNULL,

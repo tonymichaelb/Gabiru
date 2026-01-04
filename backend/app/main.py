@@ -266,7 +266,7 @@ async def api_timelapse_live() -> FileResponse:
                 print(f"[camera] live preview failed: {e}")
             except Exception:
                 pass
-            raise HTTPException(status_code=404, detail="No live frame available")
+            raise HTTPException(status_code=404, detail=f"Live preview failed: {e}")
     return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 

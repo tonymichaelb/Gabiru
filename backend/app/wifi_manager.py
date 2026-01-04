@@ -317,7 +317,19 @@ class WifiManager:
         if sec and sec.lower() not in {"open", "--"} and not pw:
             raise ValueError("password is required for this Wi‑Fi network")
 
-        async def connect_via_profile(*, conn_ssid: str, conn_password: str) -> None:
+        def _key_mgmt_for_security(security: Optional[str]) -> str:
+            sec_l = (security or "").strip().lower()
+            # WPA3-Personal often shows as "WPA3" or includes "SAE".
+            if "wpa3" in sec_l or "sae" in sec_l:
+                return "sae"
+            return "wpa-psk"
+
+        async def connect_via_profile(
+            *,
+            conn_ssid: str,
+            conn_password: str,
+            conn_security: Optional[str],
+        ) -> None:
             """Create/update a per-SSID connection profile and bring it up.
 
             This avoids nmcli prompting for secrets (which it cannot do non-interactively)
@@ -347,12 +359,13 @@ class WifiManager:
 
             # Store WPA2 PSK to avoid interactive prompts.
             if conn_password:
+                key_mgmt = _key_mgmt_for_security(conn_security)
                 await self._run_nmcli(
                     "con",
                     "modify",
                     conn_name,
                     "wifi-sec.key-mgmt",
-                    "wpa-psk",
+                    key_mgmt,
                     timeout_s=10.0,
                 )
                 await self._run_nmcli(
@@ -414,7 +427,7 @@ class WifiManager:
             if "802-11-wireless-security.key-mgmt" in msg and "property is missing" in msg:
                 if not pw:
                     raise ValueError("password is required for this WiFi network")
-                await connect_via_profile(conn_ssid=target, conn_password=pw)
+                await connect_via_profile(conn_ssid=target, conn_password=pw, conn_security=sec)
                 return
 
             # Another common failure mode: NM creates/activates a connection but can't prompt
@@ -425,7 +438,7 @@ class WifiManager:
                 or "nmcli cannot ask" in msg_l
                 or "802-11-wireless-security.psk" in msg_l
             ) and pw:
-                await connect_via_profile(conn_ssid=target, conn_password=pw)
+                await connect_via_profile(conn_ssid=target, conn_password=pw, conn_security=sec)
                 return
 
             raise RuntimeError(msg or "wifi connect failed")

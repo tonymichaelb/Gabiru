@@ -145,7 +145,7 @@ async def lifespan(_: FastAPI):
         await serial_manager.disconnect()
 
 
-app = FastAPI(title="Gabiru", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Gabiru", version="0.3.1", lifespan=lifespan)
 
 
 def _read_build_id() -> Optional[str]:

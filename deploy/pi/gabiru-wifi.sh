@@ -15,6 +15,13 @@ SLEEP_S="${CHROMA_WIFI_POLL_S:-10}"
 LOCK_FILE="${CHROMA_WIFI_LOCK_FILE:-/run/gabiru-wifi-connect.lock}"
 LOCK_MAX_AGE_S="${CHROMA_WIFI_LOCK_MAX_AGE_S:-180}"
 
+# Tolerance: only activate hotspot after persistent disconnection for this many seconds.
+# This prevents hotspot flapping during WiFi connection stabilization.
+DISCONNECT_GRACE_PERIOD_S="${CHROMA_WIFI_DISCONNECT_GRACE_PERIOD_S:-30}"
+
+# Tracks the timestamp when we first detected disconnection.
+DISCONNECT_START_TS=0
+
 log() {
   echo "[gabiru-wifi] $*"
 }
@@ -30,15 +37,23 @@ if command -v systemctl >/dev/null 2>&1; then
 fi
 
 is_wifi_connected() {
-  # Example line: wlan0:wifi:connected:MySSID
-  # Some NM versions report "connected (externally)".
-  local conn_name
-  conn_name="$(
-    nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev status \
-      | awk -F: -v iface="${IFACE}" '$1==iface && $2=="wifi" && $3 ~ /^connected/ {print $4; exit 0} END {exit 1}'
-  )" || return 1
-
-  [[ -n "${conn_name}" ]] && [[ "${conn_name}" != "${AP_CONN_NAME}" ]]
+  # Check actual IP address connectivity on the interface.
+  # This is more reliable than just checking connection state.
+  local ip4_addr
+  ip4_addr="$(
+    nmcli -t -f DEVICE,IP4.ADDRESS dev show "${IFACE}" 2>/dev/null \
+      | grep "^IP4\.ADDRESS" | head -1 | cut -d: -f2 | xargs
+  )"
+  
+  # Must have a non-zero, non-localhost IP
+  if [[ -n "${ip4_addr}" ]] && [[ "${ip4_addr}" != "127.0.0.1"* ]] && [[ "${ip4_addr}" != "0.0.0.0"* ]]; then
+    # Also verify it's not the hotspot IP range
+    if [[ "${ip4_addr}" != "10.42.0."* ]]; then
+      return 0
+    fi
+  fi
+  
+  return 1
 }
 
 is_hotspot_active() {
@@ -100,7 +115,7 @@ stop_hotspot() {
   nmcli con down "${AP_CONN_NAME}" >/dev/null 2>&1 || true
 }
 
-log "monitoring iface=${IFACE}"
+log "monitoring iface=${IFACE} (disconnect grace period: ${DISCONNECT_GRACE_PERIOD_S}s)"
 
 while true; do
   # During explicit connect attempts, keep hotspot down to avoid breaking association.
@@ -109,6 +124,7 @@ while true; do
       log "connect in progress; stopping hotspot"
       stop_hotspot
     fi
+    DISCONNECT_START_TS=0  # Reset grace period timer during active connection attempt
     sleep "${SLEEP_S}"
     continue
   fi
@@ -118,9 +134,27 @@ while true; do
       log "wifi connected; stopping hotspot"
       stop_hotspot
     fi
+    DISCONNECT_START_TS=0  # Reset timer on successful connection
   else
-    ensure_wifi_radio_on
-    start_hotspot || true
+    # WiFi is disconnected; start grace period timer if not already started
+    if [[ ${DISCONNECT_START_TS} -eq 0 ]]; then
+      DISCONNECT_START_TS="$(date +%s)"
+      log "wifi disconnected; grace period starting (${DISCONNECT_GRACE_PERIOD_S}s)"
+    fi
+
+    # Check if grace period has elapsed
+    local now elapsed
+    now="$(date +%s)"
+    elapsed=$(( now - DISCONNECT_START_TS ))
+
+    if [[ ${elapsed} -ge ${DISCONNECT_GRACE_PERIOD_S} ]]; then
+      # Grace period expired; activate hotspot
+      ensure_wifi_radio_on
+      start_hotspot || true
+    else
+      # Still within grace period; wait a bit longer before activating hotspot
+      log "grace period: ${elapsed}/${DISCONNECT_GRACE_PERIOD_S}s"
+    fi
   fi
 
   sleep "${SLEEP_S}"

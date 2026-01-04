@@ -15,6 +15,7 @@ class TimelapseInfo:
     frames: int = 0
     label: Optional[str] = None
     last_video: Optional[str] = None
+    mode: str = "interval"  # 'interval' | 'layer'
 
 
 class TimelapseManager:
@@ -36,6 +37,7 @@ class TimelapseManager:
         self._stop = asyncio.Event()
         self._lock = asyncio.Lock()
         self._capture_lock = asyncio.Lock()
+        self._session_tool: Optional[str] = None
 
     def _pick_tool(self) -> Optional[str]:
         if self._capture_tool:
@@ -60,36 +62,59 @@ class TimelapseManager:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    async def start(self, label: Optional[str] = None) -> TimelapseInfo:
+    async def start(self, label: Optional[str] = None, mode: str = "interval") -> TimelapseInfo:
         async with self._lock:
             if self._task is not None and not self._task.done():
                 return self.info
+
+            # If we're already running in layer mode (no background task), keep it.
+            if self.info.running and self.info.mode == "layer" and self.info.session_dir:
+                return self.info
+
+            mode = (mode or "interval").strip().lower()
+            if mode not in {"interval", "layer"}:
+                mode = "interval"
 
             tool = self._pick_tool()
             if tool is None:
                 raise RuntimeError("No camera capture tool found (need rpicam-still, libcamera-still, or fswebcam)")
 
+            self._session_tool = tool
+
             session = self._new_session_dir(label)
             self._stop.clear()
-            self.info = TimelapseInfo(running=True, session_dir=session.name, frames=0, label=label, last_video=self.info.last_video)
-            self._task = asyncio.create_task(self._capture_loop(session=session, tool=tool))
+            self.info = TimelapseInfo(
+                running=True,
+                session_dir=session.name,
+                frames=0,
+                label=label,
+                last_video=self.info.last_video,
+                mode=mode,
+            )
+
+            if mode == "interval":
+                self._task = asyncio.create_task(self._capture_loop(session=session, tool=tool))
+            else:
+                # 'layer' mode: frames are captured on-demand by trigger.
+                self._task = None
             return self.info
 
     async def stop(self) -> TimelapseInfo:
         async with self._lock:
-            if self._task is None or self._task.done() or not self.info.session_dir:
+            if not self.info.session_dir:
                 self.info.running = False
                 return self.info
 
-            self._stop.set()
             task = self._task
+            self._stop.set()
 
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-        except Exception:
-            pass
+        if task is not None:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
 
         # Render video (best-effort)
         try:
@@ -101,6 +126,36 @@ class TimelapseManager:
 
         self.info.running = False
         return self.info
+
+    async def capture_triggered_frame(self) -> Optional[Path]:
+        """Capture exactly one frame into the current session (layer-based timelapse).
+
+        Returns the captured frame path, or None if no session is running.
+        """
+
+        async with self._lock:
+            if not self.info.running or self.info.mode != "layer" or not self.info.session_dir:
+                return None
+            tool = self._session_tool or self._pick_tool()
+            if tool is None:
+                raise RuntimeError("No camera capture tool found (need rpicam-still, libcamera-still, or fswebcam)")
+            session_dir = self.info.session_dir
+            next_idx = int(self.info.frames) + 1
+
+        session = (self._root / session_dir).resolve()
+        if self._root.resolve() not in session.parents:
+            raise RuntimeError("Invalid timelapse directory")
+        session.mkdir(parents=True, exist_ok=True)
+
+        out = (session / f"frame{next_idx:06d}.jpg").resolve()
+        async with self._capture_lock:
+            await self._capture_frame(tool=tool, out=out)
+
+        async with self._lock:
+            # Only bump frames if we're still on the same session.
+            if self.info.running and self.info.mode == "layer" and self.info.session_dir == session_dir:
+                self.info.frames = next_idx
+        return out
 
     async def _capture_loop(self, session: Path, tool: str) -> None:
         idx = 0

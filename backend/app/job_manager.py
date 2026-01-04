@@ -7,6 +7,7 @@ from typing import Optional
 
 from .models import JobState
 from .serial_manager import SerialManager
+from .timelapse_manager import TimelapseManager
 
 
 @dataclass
@@ -19,15 +20,52 @@ class JobInfo:
 
 
 class JobManager:
-    def __init__(self, serial_manager: SerialManager, uploads_dir: Path) -> None:
+    def __init__(
+        self,
+        serial_manager: SerialManager,
+        uploads_dir: Path,
+        timelapse_manager: Optional[TimelapseManager] = None,
+        timelapse_mode: str = "interval",
+    ) -> None:
         self._serial = serial_manager
         self._uploads_dir = uploads_dir
+        self._timelapse = timelapse_manager
+        self._timelapse_mode = (timelapse_mode or "interval").strip().lower()
 
         self.info = JobInfo()
         self._task: Optional[asyncio.Task[None]] = None
         self._pause_event = asyncio.Event()
         self._pause_event.set()
         self._cancel = False
+
+    def _should_capture_layer_frame(self, raw_line: str, last_layer_key: Optional[str]) -> tuple[bool, Optional[str]]:
+        """Detect layer change markers commonly emitted by slicers.
+
+        Returns (should_capture, new_layer_key).
+        """
+
+        s = (raw_line or "").strip()
+        if not s.startswith(";"):
+            return (False, last_layer_key)
+
+        up = s.upper()
+
+        # PrusaSlicer/SuperSlicer/Cura variants
+        if "LAYER_CHANGE" in up:
+            key = f"layer_change:{hash(s)}"
+            return (key != last_layer_key, key)
+
+        if ";LAYER:" in up:
+            # e.g. ;LAYER:12
+            try:
+                part = up.split(";LAYER:", 1)[1].strip()
+                num = "".join(ch for ch in part if ch.isdigit())
+                key = f"layer:{int(num)}" if num else f"layer_raw:{hash(s)}"
+            except Exception:
+                key = f"layer_raw:{hash(s)}"
+            return (key != last_layer_key, key)
+
+        return (False, last_layer_key)
 
     async def _set_led_rgb_best_effort(self, r: int, g: int, b: int) -> None:
         """Best-effort RGB status LED.
@@ -120,11 +158,22 @@ class JobManager:
         total = max(len(lines), 1)
         self.info.total_lines = total
 
+        last_layer_key: Optional[str] = None
+
         for idx, raw in enumerate(lines):
             self.info.line = idx
             await self._pause_event.wait()
             if self._cancel:
                 break
+
+            # OctoPrint-like: capture a frame on layer change (best-effort).
+            if self._timelapse is not None and self._timelapse_mode == "layer":
+                try:
+                    should_cap, last_layer_key = self._should_capture_layer_frame(raw, last_layer_key)
+                    if should_cap:
+                        await self._timelapse.capture_triggered_frame()
+                except Exception:
+                    pass
 
             line = raw.strip()
             if not line or line.startswith(";"):

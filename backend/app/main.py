@@ -36,12 +36,17 @@ settings.uploads_dir.mkdir(parents=True, exist_ok=True)
 settings.timelapse_dir.mkdir(parents=True, exist_ok=True)
 
 serial_manager = SerialManager()
-job_manager = JobManager(serial_manager=serial_manager, uploads_dir=settings.uploads_dir)
 config_store = ConfigStore(settings.config_path)
 timelapse_manager = TimelapseManager(
     timelapse_dir=settings.timelapse_dir,
     interval_s=settings.timelapse_interval_s,
     fps=settings.timelapse_fps,
+)
+job_manager = JobManager(
+    serial_manager=serial_manager,
+    uploads_dir=settings.uploads_dir,
+    timelapse_manager=timelapse_manager,
+    timelapse_mode=settings.timelapse_mode,
 )
 
 
@@ -89,7 +94,7 @@ async def _status_broadcast_loop() -> None:
                     cur_state = job_manager.info.state
                     cur_file = job_manager.info.filename
                     if cur_state == JobState.printing and last_job_state == JobState.idle and cur_file:
-                        await timelapse_manager.start(label=cur_file)
+                        await timelapse_manager.start(label=cur_file, mode=settings.timelapse_mode)
                     if cur_state == JobState.idle and last_job_state != JobState.idle and timelapse_manager.info.running:
                         await timelapse_manager.stop()
                     last_job_state = cur_state
@@ -202,6 +207,7 @@ async def api_timelapse_status() -> dict[str, Any]:
         "frames": timelapse_manager.info.frames,
         "label": timelapse_manager.info.label,
         "last_video": timelapse_manager.info.last_video,
+        "mode": timelapse_manager.info.mode,
         "interval_s": settings.timelapse_interval_s,
         "fps": settings.timelapse_fps,
     }

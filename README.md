@@ -62,6 +62,7 @@ Configuração via variáveis de ambiente:
 - `GABIRU_TIMELAPSE_INTERVAL_S` (padrão: 10)
 - `GABIRU_TIMELAPSE_FPS` (padrão: 30)
 - `GABIRU_TIMELAPSE_AUTOSTART` (padrão: 0) — se `1`, inicia/para junto com o job
+- `GABIRU_TIMELAPSE_MODE` (padrão: `interval`) — `interval` (a cada N segundos) ou `layer` (estilo OctoPrint: 1 frame por camada durante a impressão)
 
 ## Raspberry Pi Zero 2 W (deploy)
 

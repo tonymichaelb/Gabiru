@@ -16,5 +16,8 @@ Environment=GABIRU_AUTOCONNECT=1
 Environment=GABIRU_PORT=/dev/ttyACM0
 Environment=GABIRU_BAUDRATE=115200
 
+# Timelapse mode: 'interval' (default) or 'layer' (OctoPrint-like).
+# Environment=GABIRU_TIMELAPSE_MODE=layer
+
 [Install]
 WantedBy=multi-user.target

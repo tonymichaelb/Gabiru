@@ -15,6 +15,7 @@ class Settings:
     timelapse_interval_s: float
     timelapse_fps: int
     timelapse_autostart: bool
+    timelapse_mode: str
 
     @property
     def data_dir(self) -> Path:
@@ -48,6 +49,9 @@ def get_settings() -> Settings:
     timelapse_interval_s = float(os.environ.get("GABIRU_TIMELAPSE_INTERVAL_S") or 10.0)
     timelapse_fps = int(os.environ.get("GABIRU_TIMELAPSE_FPS") or 30)
     timelapse_autostart = _env_bool("GABIRU_TIMELAPSE_AUTOSTART", default=False)
+    timelapse_mode = (os.environ.get("GABIRU_TIMELAPSE_MODE") or "interval").strip().lower()
+    if timelapse_mode not in {"interval", "layer"}:
+        timelapse_mode = "interval"
     return Settings(
         root_dir=root,
         autoconnect=_env_bool("GABIRU_AUTOCONNECT", default=False),
@@ -56,4 +60,5 @@ def get_settings() -> Settings:
         timelapse_interval_s=timelapse_interval_s,
         timelapse_fps=timelapse_fps,
         timelapse_autostart=timelapse_autostart,
+        timelapse_mode=timelapse_mode,
     )

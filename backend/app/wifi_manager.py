@@ -49,6 +49,15 @@ class WifiManager:
     def is_available(self) -> bool:
         return bool(shutil.which("nmcli"))
 
+    def _make_client_conn_name(self, ssid: str) -> str:
+        base = (ssid or "").strip() or "wifi"
+        # Keep it conservative: ASCII-ish, avoid characters that nmcli may treat oddly.
+        base = re.sub(r"[^A-Za-z0-9._-]+", "_", base).strip("_")
+        if not base:
+            base = "wifi"
+        name = f"gabiru-wifi-{base}"
+        return name[:64]
+
     async def _run_nmcli(self, *args: str, timeout_s: float = 20.0) -> tuple[int, str, str]:
         proc = await asyncio.create_subprocess_exec(
             "nmcli",
@@ -218,9 +227,67 @@ class WifiManager:
             if pw:
                 args.extend(["password", pw])
 
-            rc, _, err = await self._run_nmcli(*args, timeout_s=75.0)
-            if rc != 0:
-                raise RuntimeError(err.strip() or "wifi connect failed")
+            rc, out, err = await self._run_nmcli(*args, timeout_s=75.0)
+            if rc == 0:
+                return
+
+            msg = (err or out or "").strip()
+
+            # Some NetworkManager builds (notably on certain Debian/RPi images) fail to
+            # infer key-mgmt for WPA2 networks when using `dev wifi connect`.
+            # Fallback: create a persistent connection profile and bring it up.
+            if "802-11-wireless-security.key-mgmt" in msg and "property is missing" in msg:
+                conn_name = self._make_client_conn_name(target)
+
+                # Best-effort cleanup if it already exists.
+                await self._run_nmcli("con", "delete", conn_name, timeout_s=10.0)
+
+                rc2, _, err2 = await self._run_nmcli(
+                    "con",
+                    "add",
+                    "type",
+                    "wifi",
+                    "ifname",
+                    self.iface,
+                    "con-name",
+                    conn_name,
+                    "ssid",
+                    target,
+                    timeout_s=20.0,
+                )
+                if rc2 != 0:
+                    raise RuntimeError((err2 or "failed to create wifi connection").strip())
+
+                pw = (password or "").strip()
+                if pw:
+                    await self._run_nmcli(
+                        "con",
+                        "modify",
+                        conn_name,
+                        "wifi-sec.key-mgmt",
+                        "wpa-psk",
+                        timeout_s=10.0,
+                    )
+                    await self._run_nmcli(
+                        "con",
+                        "modify",
+                        conn_name,
+                        "wifi-sec.psk",
+                        pw,
+                        timeout_s=10.0,
+                    )
+
+                # Ensure DHCP.
+                await self._run_nmcli("con", "modify", conn_name, "ipv4.method", "auto", timeout_s=10.0)
+                await self._run_nmcli("con", "modify", conn_name, "ipv6.method", "auto", timeout_s=10.0)
+
+                rc3, _, err3 = await self._run_nmcli("con", "up", conn_name, timeout_s=75.0)
+                if rc3 != 0:
+                    raise RuntimeError((err3 or "wifi connect failed").strip())
+
+                return
+
+            raise RuntimeError(msg or "wifi connect failed")
         finally:
             try:
                 os.remove(self.connect_lock_path)

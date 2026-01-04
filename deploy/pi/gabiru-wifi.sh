@@ -10,6 +10,11 @@ AP_PASS="${CHROMA_AP_PASS:-chroma-setup}"
 AP_CONN_NAME="${CHROMA_AP_CONN_NAME:-chroma-hotspot}"
 SLEEP_S="${CHROMA_WIFI_POLL_S:-10}"
 
+# When the user requests a Wi‑Fi connection via the panel, the backend will create this
+# lock so the watchdog doesn't immediately re-enable hotspot and interrupt the join.
+LOCK_FILE="${CHROMA_WIFI_LOCK_FILE:-/run/gabiru-wifi-connect.lock}"
+LOCK_MAX_AGE_S="${CHROMA_WIFI_LOCK_MAX_AGE_S:-120}"
+
 log() {
   echo "[gabiru-wifi] $*"
 }
@@ -42,6 +47,22 @@ is_hotspot_active() {
 
 ensure_wifi_radio_on() {
   nmcli radio wifi on >/dev/null 2>&1 || true
+}
+
+lock_is_active() {
+  [[ -f "${LOCK_FILE}" ]] || return 1
+
+  # If the lock is stale, ignore it.
+  local now mtime age
+  now="$(date +%s)"
+  mtime="$(stat -c %Y "${LOCK_FILE}" 2>/dev/null || echo 0)"
+  age=$(( now - mtime ))
+  (( age >= 0 && age <= LOCK_MAX_AGE_S ))
+}
+
+is_wifi_connecting() {
+  nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev status \
+    | awk -F: -v iface="${IFACE}" '$1==iface && $2=="wifi" && $3 ~ /^connecting/ {exit 0} END {exit 1}'
 }
 
 start_hotspot() {
@@ -82,12 +103,23 @@ stop_hotspot() {
 log "monitoring iface=${IFACE}"
 
 while true; do
+  # During explicit connect attempts, keep hotspot down to avoid breaking association.
+  if lock_is_active || is_wifi_connecting; then
+    if is_hotspot_active; then
+      log "connect in progress; stopping hotspot"
+      stop_hotspot
+    fi
+    sleep "${SLEEP_S}"
+    continue
+  fi
+
   if is_wifi_connected; then
     if is_hotspot_active; then
       log "wifi connected; stopping hotspot"
       stop_hotspot
     fi
   else
+    ensure_wifi_radio_on
     start_hotspot || true
   fi
 

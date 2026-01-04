@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import shutil
+import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -37,10 +39,12 @@ class WifiManager:
         iface: str = "wlan0",
         hotspot_conn_name: str = "chroma-hotspot",
         hotspot_ssid: str = "Chroma-Setup",
+        connect_lock_path: str = "/run/gabiru-wifi-connect.lock",
     ) -> None:
         self.iface = iface
         self.hotspot_conn_name = hotspot_conn_name
         self.hotspot_ssid = hotspot_ssid
+        self.connect_lock_path = connect_lock_path
 
     def is_available(self) -> bool:
         return bool(shutil.which("nmcli"))
@@ -104,11 +108,11 @@ class WifiManager:
                 dev, typ, state, conn = parts[0], parts[1], parts[2], parts[3]
                 if dev != self.iface or typ != "wifi":
                     continue
-                if state == "connected":
+                if state.startswith("connected"):
                     connected = True
                     # For Wi-Fi, NetworkManager typically names the connection as the SSID.
                     ssid = conn if conn and conn != "--" else None
-                if conn == self.hotspot_conn_name and state == "connected":
+                if conn == self.hotspot_conn_name and state.startswith("connected"):
                     hotspot_active = True
 
         ip4: Optional[str] = None
@@ -192,14 +196,33 @@ class WifiManager:
         if not target:
             raise ValueError("ssid is required")
 
-        # Best-effort: bring down hotspot if it exists.
-        await self._run_nmcli("con", "down", self.hotspot_conn_name, timeout_s=10.0)
+        # Prevent the hotspot watchdog from restarting the AP while we attempt to connect.
+        # This is important because bringing up a client connection temporarily drops AP mode.
+        try:
+            os.makedirs(os.path.dirname(self.connect_lock_path), exist_ok=True)
+            with open(self.connect_lock_path, "w", encoding="utf-8") as f:
+                f.write(str(int(time.time())))
+        except Exception:
+            # Best-effort; proceed even if we can't create the lock.
+            pass
 
-        args = ["dev", "wifi", "connect", target, "ifname", self.iface]
-        pw = (password or "").strip()
-        if pw:
-            args.extend(["password", pw])
+        try:
+            # Ensure Wi-Fi radio is enabled.
+            await self._run_nmcli("radio", "wifi", "on", timeout_s=10.0)
 
-        rc, _, err = await self._run_nmcli(*args, timeout_s=40.0)
-        if rc != 0:
-            raise RuntimeError(err.strip() or "wifi connect failed")
+            # Best-effort: bring down hotspot if it exists.
+            await self._run_nmcli("con", "down", self.hotspot_conn_name, timeout_s=15.0)
+
+            args = ["dev", "wifi", "connect", target, "ifname", self.iface]
+            pw = (password or "").strip()
+            if pw:
+                args.extend(["password", pw])
+
+            rc, _, err = await self._run_nmcli(*args, timeout_s=75.0)
+            if rc != 0:
+                raise RuntimeError(err.strip() or "wifi connect failed")
+        finally:
+            try:
+                os.remove(self.connect_lock_path)
+            except Exception:
+                pass

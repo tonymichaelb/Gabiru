@@ -35,6 +35,7 @@ class TimelapseManager:
         self._task: Optional[asyncio.Task[None]] = None
         self._stop = asyncio.Event()
         self._lock = asyncio.Lock()
+        self._capture_lock = asyncio.Lock()
 
     def _pick_tool(self) -> Optional[str]:
         if self._capture_tool:
@@ -104,7 +105,8 @@ class TimelapseManager:
             idx += 1
             out = session / f"frame{idx:06d}.jpg"
             try:
-                await self._capture_frame(tool=tool, out=out)
+                async with self._capture_lock:
+                    await self._capture_frame(tool=tool, out=out)
                 self.info.frames = idx
             except Exception:
                 # Ignore capture errors; keep trying.
@@ -140,6 +142,25 @@ class TimelapseManager:
         rc = await proc.wait()
         if rc != 0:
             raise RuntimeError(f"capture failed ({tool})")
+
+    async def capture_preview_frame(self) -> Path:
+        """Capture a single JPEG frame for live preview.
+
+        This does not start/stop a timelapse session. It simply captures a fresh
+        frame to a stable file in the timelapse root, so the UI can request it.
+        """
+
+        tool = self._pick_tool()
+        if tool is None:
+            raise RuntimeError("No camera capture tool found (need libcamera-still or fswebcam)")
+
+        out = (self._root / "live.jpg").resolve()
+        if self._root.resolve() not in out.parents:
+            raise RuntimeError("Invalid timelapse directory")
+
+        async with self._capture_lock:
+            await self._capture_frame(tool=tool, out=out)
+        return out
 
     async def _render_video(self, session_path: Path) -> Path:
         # Requires ffmpeg. Generates session.mp4 in the session folder.

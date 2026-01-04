@@ -259,7 +259,10 @@ async def api_timelapse_video(name: str) -> FileResponse:
 async def api_timelapse_live() -> FileResponse:
     path = timelapse_manager.latest_frame_path()
     if path is None or not path.exists() or not path.is_file():
-        raise HTTPException(status_code=404, detail="No live frame available")
+        try:
+            path = await timelapse_manager.capture_preview_frame()
+        except Exception:
+            raise HTTPException(status_code=404, detail="No live frame available")
     return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 

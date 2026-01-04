@@ -4,18 +4,18 @@ const terminal = $("terminal");
 const connStatus = $("connStatus");
 
 const tabPrint = $("tabPrint");
-    startUpdateWatcher();
 const tabMotion = $("tabMotion");
 const tabSystem = $("tabSystem");
 const panelPrint = $("panelPrint");
 const panelMotion = $("panelMotion");
 const panelSystem = $("panelSystem");
 
-const portSelect = $("portSelect");
-const baudInput = $("baudInput");
-const refreshPortsBtn = $("refreshPortsBtn");
 const connectBtn = $("connectBtn");
 const disconnectBtn = $("disconnectBtn");
+const fixedPortLabel = $("fixedPortLabel");
+
+const FIXED_SERIAL_PORT = "/dev/ttyACM0";
+const FIXED_BAUDRATE = 115200;
 
 const hotendSet = $("hotendSet");
 const bedSet = $("bedSet");
@@ -76,11 +76,31 @@ const updateBanner = $("updateBanner");
 const updateBannerText = $("updateBannerText");
 const updateReloadBtn = $("updateReloadBtn");
 
+const footerVersion = $("footerVersion");
+const toastHost = $("toastHost");
+
 let selectedFilename = "";
 
 let lastStatus;
 
 let updateBaselineKey;
+
+function setFooterVersionText({ version, build } = {}) {
+  if (!footerVersion) return;
+
+  const v = version ? String(version).trim() : "";
+  const b = build ? String(build).trim() : "";
+
+  if (!v && !b) {
+    footerVersion.textContent = "versão —";
+    return;
+  }
+
+  const parts = [];
+  if (v) parts.push(`v${v}`);
+  if (b) parts.push(String(b));
+  footerVersion.textContent = `versão ${parts.join(" • ")}`;
+}
 
 let toolpathState = {
   filename: "",
@@ -89,6 +109,7 @@ let toolpathState = {
   layerIndex: 0,
   layerPinned: false,
   jobLine: null,
+  inspectLine: null,
   zoom: 1,
   _animRaf: null,
   _animOn: false,
@@ -168,6 +189,8 @@ async function startUpdateWatcher() {
       const v = await api("/api/version");
       const ver = v && typeof v === "object" ? v.version : null;
       const build = v && typeof v === "object" ? v.build : null;
+
+      setFooterVersionText({ version: ver, build });
 
       const key = `${ver == null ? "" : String(ver)}|${build == null ? "" : String(build)}`;
       if (updateBaselineKey === undefined) {
@@ -249,10 +272,46 @@ function jog(axis, deltaMm) {
   wsSendMany(["G91", `G1 ${axis}${dist.toFixed(abs < 1 ? 3 : 2)} F${feed}`, "G90"]);
 }
 
+function notify(type, message) {
+  if (!toastHost) return;
+  const t = String(type || "").toLowerCase();
+  const text = String(message || "").trim();
+  if (!text) return;
+
+  // Keep it minimal: only errors and warnings.
+  if (t !== "error" && t !== "warn") return;
+
+  const el = document.createElement("div");
+  el.className = `toast toast-${t}`;
+
+  const msg = document.createElement("div");
+  msg.className = "toast-msg";
+  msg.textContent = text;
+  el.appendChild(msg);
+
+  el.title = "Clique para fechar";
+  el.onclick = () => el.remove();
+
+  toastHost.appendChild(el);
+
+  // Auto-dismiss.
+  const ttl = t === "error" ? 9000 : 6000;
+  setTimeout(() => {
+    if (el.isConnected) el.remove();
+  }, ttl);
+}
+
 function log(line) {
   const atBottom = terminal.scrollTop + terminal.clientHeight >= terminal.scrollHeight - 20;
   terminal.textContent += line + "\n";
   if (atBottom) terminal.scrollTop = terminal.scrollHeight;
+
+  const s = String(line || "");
+  if (s.startsWith("[erro]")) {
+    notify("error", s.replace(/^\[erro\]\s*/i, ""));
+  } else if (s.startsWith("[ws] desconectado")) {
+    notify("warn", "Conexão WebSocket caiu; reconectando...");
+  }
 }
 
 async function api(path, opts = {}) {
@@ -271,17 +330,6 @@ async function api(path, opts = {}) {
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("application/json")) return await res.json();
   return await res.text();
-}
-
-async function refreshPorts() {
-  const ports = await api("/api/ports");
-  portSelect.innerHTML = "";
-  for (const p of ports) {
-    const opt = document.createElement("option");
-    opt.value = p.device;
-    opt.textContent = `${p.device} — ${p.description}`;
-    portSelect.appendChild(opt);
-  }
 }
 
 async function refreshFiles() {
@@ -365,6 +413,7 @@ async function renderGcodePreview({ filename, thumbUrl }) {
     layerIndex: 0,
     layerPinned: false,
     jobLine: null,
+    inspectLine: null,
     zoom: 1,
     _animRaf: null,
     _animOn: false,
@@ -406,6 +455,30 @@ async function renderGcodePreview({ filename, thumbUrl }) {
   zoomLabel.className = "muted";
   zoomLabel.id = "toolpathZoomLabel";
   controls.appendChild(zoomLabel);
+
+  const lineLabel = document.createElement("div");
+  lineLabel.className = "muted";
+  lineLabel.id = "toolpathLineLabel";
+  lineLabel.style.cursor = "pointer";
+  lineLabel.title = "Clique para voltar a seguir a impressão";
+  lineLabel.onclick = () => {
+    toolpathState.inspectLine = null;
+    syncToolpathLineControls();
+    redrawToolpath();
+  };
+  controls.appendChild(lineLabel);
+
+  const lineSlider = document.createElement("input");
+  lineSlider.type = "range";
+  lineSlider.id = "toolpathLineSlider";
+  lineSlider.className = "toolpath-slider";
+  lineSlider.step = "1";
+  lineSlider.oninput = () => {
+    toolpathState.inspectLine = Number(lineSlider.value || 0);
+    updateToolpathLineLabel();
+    redrawToolpath();
+  };
+  controls.appendChild(lineSlider);
 
   const zoomSlider = document.createElement("input");
   zoomSlider.type = "range";
@@ -490,6 +563,7 @@ async function renderGcodePreview({ filename, thumbUrl }) {
   if (layers.length > 1) {
     const layerSlider = document.createElement("input");
     layerSlider.type = "range";
+    layerSlider.id = "toolpathLayerSlider";
     layerSlider.min = "0";
     layerSlider.max = String(layers.length - 1);
     layerSlider.step = "1";
@@ -500,6 +574,7 @@ async function renderGcodePreview({ filename, thumbUrl }) {
       toolpathState.layerPinned = true;
       toolpathState.layerIndex = Number(layerSlider.value || 0);
       updateToolpathLayerLabel();
+      syncToolpathLineControls();
       redrawToolpath();
     };
 
@@ -513,6 +588,7 @@ async function renderGcodePreview({ filename, thumbUrl }) {
 
   updateToolpathLayerLabel();
   updateToolpathZoomLabel();
+  syncToolpathLineControls();
   redrawToolpath();
 
   // Auto-animate only during an active print of this file.
@@ -570,6 +646,67 @@ function updateToolpathLayerLabel() {
   label.textContent = `Camada: ${idx + 1}/${layers.length}${z != null ? ` (Z=${z})` : ""}${current}`;
 }
 
+function getToolpathMaxLine(data) {
+  const segs = Array.isArray(data?.segments) ? data.segments : [];
+  let maxLine = 0;
+  for (const s of segs) {
+    const ln = Number(s?.line ?? 0);
+    if (Number.isFinite(ln)) maxLine = Math.max(maxLine, ln);
+  }
+  return maxLine;
+}
+
+function getToolpathLineRange(data) {
+  const layers = Array.isArray(data?.layers) ? data.layers : [];
+  if (layers.length) {
+    const idx = Math.min(Math.max(0, toolpathState.layerIndex || 0), layers.length - 1);
+    const start = Number(layers[idx]?.start_line ?? 0);
+    const end = Number(layers[idx]?.end_line ?? start);
+    const min = Number.isFinite(start) ? start : 0;
+    const max = Number.isFinite(end) ? Math.max(min, end) : min;
+    return { min, max };
+  }
+  return { min: 0, max: getToolpathMaxLine(data) };
+}
+
+function syncToolpathLineControls() {
+  const data = toolpathState.data;
+  if (!data) return;
+
+  const slider = document.getElementById("toolpathLineSlider");
+  if (!slider) return;
+
+  const r = getToolpathLineRange(data);
+  slider.min = String(r.min);
+  slider.max = String(r.max);
+  slider.disabled = r.max <= r.min;
+
+  const clamp = (v) => Math.min(r.max, Math.max(r.min, Number(v)));
+  if (toolpathState.inspectLine == null) {
+    const base = toolpathState.jobLine != null ? toolpathState.jobLine : r.min;
+    slider.value = String(clamp(base));
+  } else {
+    toolpathState.inspectLine = clamp(toolpathState.inspectLine);
+    slider.value = String(toolpathState.inspectLine);
+  }
+  updateToolpathLineLabel();
+}
+
+function updateToolpathLineLabel() {
+  const data = toolpathState.data;
+  if (!data) return;
+  const label = document.getElementById("toolpathLineLabel");
+  if (!label) return;
+
+  const r = getToolpathLineRange(data);
+  const current = toolpathState.inspectLine != null ? toolpathState.inspectLine : toolpathState.jobLine;
+  const manual = toolpathState.inspectLine != null;
+
+  const curTxt = current == null ? "—" : String(Math.round(Number(current)));
+  const hint = manual ? " • manual (clique para seguir impressão)" : "";
+  label.textContent = `Linha: ${curTxt} (${r.min}–${r.max})${hint}`;
+}
+
 function updateToolpathZoomLabel() {
   const label = document.getElementById("toolpathZoomLabel");
   if (!label) return;
@@ -597,7 +734,7 @@ function redrawToolpath(timeMs) {
   if (!toolpathState.data || !toolpathState.canvas) return;
   drawToolpath(toolpathState.canvas, toolpathState.data, {
     layer: toolpathState.layerIndex,
-    uptoLine: toolpathState.jobLine,
+    uptoLine: toolpathState.inspectLine != null ? toolpathState.inspectLine : toolpathState.jobLine,
     zoom: toolpathState.zoom,
     timeMs,
     animateHead: toolpathState._animOn,
@@ -737,12 +874,12 @@ function drawToolpath(canvas, data, { layer, uptoLine, zoom, timeMs, animateHead
   };
 
   // Remaining (lighter)
-  strokeSegments(travelRest, { width: 0.9, color: "#e5e7eb" });
-  strokeSegments(extrRest, { width: 1.6, color: "#111827" });
+  strokeSegments(travelRest, { width: 0.9, color: "#334155" });
+  strokeSegments(extrRest, { width: 1.6, color: "#64748b" });
 
   // Printed (darker/thicker)
-  strokeSegments(travelPrinted, { width: 1.0, color: "#d1d5db" });
-  strokeSegments(extrPrinted, { width: 2.2, color: "#111827" });
+  strokeSegments(travelPrinted, { width: 1.0, color: "#94a3b8" });
+  strokeSegments(extrPrinted, { width: 2.2, color: "#e5e7eb" });
 
   const t = Number(timeMs);
   const canAnimate = !!animateHead && lastSeg && Number.isFinite(t);
@@ -782,6 +919,11 @@ function renderStatus(s) {
   };
 
   connStatus.textContent = connMap[s.connection] || s.connection;
+
+  if (fixedPortLabel) {
+    fixedPortLabel.style.display = s.connection === "connected" ? "block" : "none";
+  }
+
   jobFile.textContent = s.job_file || "—";
   jobState.textContent = jobMap[s.job_state] || s.job_state;
   jobProgress.textContent = `${Math.round((s.progress || 0) * 100)}%`;
@@ -822,10 +964,11 @@ function renderStatus(s) {
       const layers = Array.isArray(toolpathState.data.layers) ? toolpathState.data.layers : [];
       if (!toolpathState.layerPinned && layers.length) {
         toolpathState.layerIndex = findLayerForLine(layers, toolpathState.jobLine);
-        const slider = filePreview.querySelector(".toolpath-slider");
+        const slider = document.getElementById("toolpathLayerSlider");
         if (slider) slider.value = String(toolpathState.layerIndex);
       }
       updateToolpathLayerLabel();
+      if (toolpathState.inspectLine == null) syncToolpathLineControls();
       redrawToolpath();
     }
   } catch {
@@ -964,6 +1107,7 @@ function connectWs() {
       renderStatus(msg.data);
     } else if (msg.type === "error") {
       log(`[erro] ${msg.message}`);
+      notify("error", msg.message);
     }
   };
 
@@ -973,17 +1117,13 @@ function connectWs() {
   };
 }
 
-refreshPortsBtn.onclick = async () => {
-  try { await refreshPorts(); } catch (e) { log(`[erro] ${e.message}`); }
-};
-
 connectBtn.onclick = async () => {
   try {
     await api("/api/printer/connect", {
       method: "POST",
-      body: JSON.stringify({ port: portSelect.value, baudrate: Number(baudInput.value || 115200) }),
+      body: JSON.stringify({ port: FIXED_SERIAL_PORT, baudrate: FIXED_BAUDRATE }),
     });
-    log(`[printer] conectado em ${portSelect.value}`);
+    log(`[printer] conectado em ${FIXED_SERIAL_PORT}`);
     ws?.send(JSON.stringify({ type: "poll" }));
   } catch (e) {
     log(`[erro] ${e.message}`);
@@ -1099,7 +1239,16 @@ startBtn.onclick = async () => {
 };
 
 pauseBtn.onclick = async () => {
-  try { await api("/api/job/pause", { method: "POST" }); log("[job] pausado"); } catch (e) { log(`[erro] ${e.message}`); }
+  try {
+    await api("/api/job/pause", { method: "POST" });
+    log("[job] pausado");
+
+    // Move head to a known safe spot after pausing.
+    // Keep it minimal: only set XY to 5/5 (absolute mode).
+    wsSendMany(["G90", "G1 X5 Y5 F6000"]);
+  } catch (e) {
+    log(`[erro] ${e.message}`);
+  }
 };
 
 resumeBtn.onclick = async () => {
@@ -1160,7 +1309,7 @@ tlRefreshBtn.onclick = async () => {
 (async function boot() {
   try {
     setActiveTab("print");
-    await refreshPorts();
+    startUpdateWatcher();
     await refreshFiles();
     await refreshTimelapse();
   } catch (e) {

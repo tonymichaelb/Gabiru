@@ -3,15 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gabiru</title>
-  <link rel="stylesheet" href="/static/styles.css?v=8" />
+  <title>Chroma</title>
+  <link rel="stylesheet" href="/static/styles.css?v=10" />
 </head>
 <body>
   <main class="wrap">
     <header class="bar">
-      <h1>Gabiru</h1>
+      <h1>Chroma</h1>
       <div class="status" id="connStatus">desconectado</div>
     </header>
+
+    <div class="toast-host" id="toastHost" aria-live="polite" aria-relevant="additions" aria-atomic="false"></div>
 
     <div class="update-banner" id="updateBanner" style="display:none;">
       <div class="update-banner-text" id="updateBannerText">Nova atualização disponível.</div>
@@ -154,15 +156,7 @@
     <section class="card">
       <h2>Conexão</h2>
       <div class="row">
-        <label>
-          Porta
-          <select id="portSelect"></select>
-        </label>
-        <label>
-          Baudrate
-          <input id="baudInput" type="number" value="115200" min="1200" />
-        </label>
-        <button id="refreshPortsBtn">Atualizar portas</button>
+        <div class="muted" id="fixedPortLabel" style="display:none; align-self: center;">Porta: /dev/ttyACM0</div>
         <button id="connectBtn">Conectar</button>
         <button id="disconnectBtn" class="secondary">Desconectar</button>
       </div>
@@ -202,6 +196,14 @@
     </section>
   </main>
 
-  <script src="/static/app.js?v=10"></script>
+  <footer class="footer" aria-label="Rodapé">
+    <div class="footer-left">
+      <span class="footer-app">Gabiru</span>
+      <span class="footer-sep">•</span>
+      <span class="footer-version" id="footerVersion">versão —</span>
+    </div>
+  </footer>
+
+  <script src="/static/app.js?v=16"></script>
 </body>
 </html>

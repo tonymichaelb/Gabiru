@@ -27,6 +27,7 @@ class SerialManager:
         self._ser: Optional[serial.Serial] = None
         self._reader_task: Optional[asyncio.Task[None]] = None
         self._lock = asyncio.Lock()
+        self._cmd_lock = asyncio.Lock()
 
         self.state = SerialState()
 
@@ -82,6 +83,10 @@ class SerialManager:
             self.state = SerialState()
 
     async def send(self, line: str) -> None:
+        async with self._cmd_lock:
+            await self._send_raw(line)
+
+    async def _send_raw(self, line: str) -> None:
         if not self.is_connected or self._ser is None:
             raise RuntimeError("Serial not connected")
 
@@ -96,9 +101,10 @@ class SerialManager:
         await loop.run_in_executor(None, _write)
 
     async def send_and_wait_ok(self, line: str, timeout_s: float = 10.0) -> None:
-        self._ok_event.clear()
-        await self.send(line)
-        await asyncio.wait_for(self._ok_event.wait(), timeout=timeout_s)
+        async with self._cmd_lock:
+            self._ok_event.clear()
+            await self._send_raw(line)
+            await asyncio.wait_for(self._ok_event.wait(), timeout=timeout_s)
 
     async def read_line(self) -> str:
         return await self._line_queue.get()

@@ -12,9 +12,9 @@ RestartSec=2
 
 # Optional: autoconnect on boot
 Environment=GABIRU_AUTOCONNECT=1
-# Optional overrides (leave commented if you want it to use saved config.json)
-# Environment=GABIRU_PORT=/dev/ttyUSB0
-# Environment=GABIRU_BAUDRATE=115200
+# Use the fixed USB ACM port + 115200 baud.
+Environment=GABIRU_PORT=/dev/ttyACM0
+Environment=GABIRU_BAUDRATE=115200
 
 [Install]
 WantedBy=multi-user.target

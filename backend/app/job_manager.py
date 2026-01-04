@@ -29,6 +29,23 @@ class JobManager:
         self._pause_event.set()
         self._cancel = False
 
+    async def _set_led_rgb_best_effort(self, r: int, g: int, b: int) -> None:
+        """Best-effort RGB status LED.
+
+        Uses M150 (Marlin-style). If the printer doesn't support it, ignore errors.
+        """
+
+        if not self._serial.is_connected:
+            return
+        r = max(0, min(255, int(r)))
+        g = max(0, min(255, int(g)))
+        b = max(0, min(255, int(b)))
+        try:
+            # Marlin commonly uses U for green.
+            await self._serial.send(f"M150 R{r} U{g} B{b}")
+        except Exception:
+            pass
+
     def is_running(self) -> bool:
         return self._task is not None and not self._task.done()
 
@@ -47,6 +64,9 @@ class JobManager:
         self._cancel = False
         self._pause_event.set()
         self.info = JobInfo(state=JobState.printing, filename=filename, progress=0.0)
+
+        # Printing state LED: white
+        await self._set_led_rgb_best_effort(255, 255, 255)
         self._task = asyncio.create_task(self._run_file(path))
 
     async def pause(self) -> None:
@@ -55,11 +75,17 @@ class JobManager:
         self.info.state = JobState.paused
         self._pause_event.clear()
 
+        # Paused state LED: blue
+        await self._set_led_rgb_best_effort(0, 0, 255)
+
     async def resume(self) -> None:
         if self.info.state != JobState.paused:
             return
         self.info.state = JobState.printing
         self._pause_event.set()
+
+        # Printing state LED: white
+        await self._set_led_rgb_best_effort(255, 255, 255)
 
     async def cancel(self) -> None:
         if self.info.state not in (JobState.printing, JobState.paused):
@@ -75,6 +101,21 @@ class JobManager:
         self.info = JobInfo()
 
     async def _run_file(self, path: Path) -> None:
+        # Always run homing + leveling before printing the file.
+        # Keep job line/progress accounting based on the file itself.
+        try:
+            for cmd in ("G28", "G29"):
+                await self._pause_event.wait()
+                if self._cancel:
+                    self.info = JobInfo()
+                    return
+                await self._serial.send_and_wait_ok(cmd)
+        except Exception:
+            # If preflight fails (e.g., probing error), stop the job.
+            await self._set_led_rgb_best_effort(255, 0, 0)
+            self.info = JobInfo()
+            return
+
         lines = path.read_text(errors="ignore").splitlines()
         total = max(len(lines), 1)
         self.info.total_lines = total
@@ -97,7 +138,18 @@ class JobManager:
                     self.info.progress = (idx + 1) / total
                     continue
 
-            await self._serial.send_and_wait_ok(line)
+            try:
+                await self._serial.send_and_wait_ok(line)
+            except Exception:
+                # Error state LED: red
+                await self._set_led_rgb_best_effort(255, 0, 0)
+                self.info = JobInfo()
+                return
             self.info.progress = (idx + 1) / total
 
+        # Job finished: green; cancelled: off
+        if self._cancel:
+            await self._set_led_rgb_best_effort(0, 0, 0)
+        else:
+            await self._set_led_rgb_best_effort(0, 255, 0)
         self.info = JobInfo()

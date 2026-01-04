@@ -197,6 +197,52 @@ class WifiManager:
         nets.sort(key=lambda n: n.signal, reverse=True)
         return nets
 
+    async def _get_security_for_ssid(self, ssid: str) -> Optional[str]:
+        target = (ssid or "").strip()
+        if not target:
+            return None
+
+        # Prefer a fresh scan when possible.
+        rc, out, err = await self._run_nmcli(
+            "-t",
+            "-f",
+            "SSID,SECURITY",
+            "dev",
+            "wifi",
+            "list",
+            "ifname",
+            self.iface,
+            "--rescan",
+            "yes",
+            timeout_s=30.0,
+        )
+        if rc != 0:
+            rc, out, err = await self._run_nmcli(
+                "-t",
+                "-f",
+                "SSID,SECURITY",
+                "dev",
+                "wifi",
+                "list",
+                "ifname",
+                self.iface,
+                timeout_s=30.0,
+            )
+        if rc != 0:
+            return None
+
+        for line in out.splitlines():
+            parts = line.split(":")
+            if len(parts) < 2:
+                continue
+            line_ssid = parts[0].strip()
+            if line_ssid != target:
+                continue
+            sec = parts[1].strip()
+            return sec or "open"
+
+        return None
+
     async def connect(self, *, ssid: str, password: Optional[str]) -> None:
         if not self.is_available():
             raise RuntimeError("nmcli not available")
@@ -204,6 +250,11 @@ class WifiManager:
         target = (ssid or "").strip()
         if not target:
             raise ValueError("ssid is required")
+
+        pw = (password or "").strip()
+        sec = await self._get_security_for_ssid(target)
+        if sec and sec.lower() not in {"open", "--"} and not pw:
+            raise ValueError("password is required for this Wi‑Fi network")
 
         # Prevent the hotspot watchdog from restarting the AP while we attempt to connect.
         # This is important because bringing up a client connection temporarily drops AP mode.
@@ -223,7 +274,6 @@ class WifiManager:
             await self._run_nmcli("con", "down", self.hotspot_conn_name, timeout_s=15.0)
 
             args = ["dev", "wifi", "connect", target, "ifname", self.iface]
-            pw = (password or "").strip()
             if pw:
                 args.extend(["password", pw])
 

@@ -145,7 +145,7 @@ async def lifespan(_: FastAPI):
         await serial_manager.disconnect()
 
 
-app = FastAPI(title="Gabiru", version="0.3.1", lifespan=lifespan)
+app = FastAPI(title="Gabiru", version="0.3.2", lifespan=lifespan)
 
 
 def _read_build_id() -> Optional[str]:
@@ -249,6 +249,16 @@ async def api_wifi_status() -> dict[str, Any]:
         "hotspot_ssid": st.hotspot_ssid,
         "ip4": st.ip4,
     }
+
+
+@app.get("/api/wifi/saved")
+async def api_wifi_saved() -> dict[str, list[str]]:
+    """Get list of saved Wi-Fi networks."""
+    try:
+        saved = await wifi_manager.list_saved_networks()
+        return {"saved": saved}
+    except Exception:
+        return {"saved": []}
 
 
 @app.post("/api/wifi/scan")

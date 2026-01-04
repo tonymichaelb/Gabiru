@@ -260,6 +260,44 @@ class WifiManager:
         nets.sort(key=lambda n: n.signal, reverse=True)
         return nets
 
+    async def list_saved_networks(self) -> list[str]:
+        """List SSID names of saved Wi-Fi connections (excluding hotspot)."""
+        if not self.is_available():
+            return []
+
+        rc, out, err = await self._run_nmcli_terse(
+            "-f",
+            "NAME,TYPE,AUTOCONNECT",
+            "con",
+            "show",
+        )
+        if rc != 0:
+            return []
+
+        saved: list[str] = []
+        for line in out.splitlines():
+            parts = self._split_nmcli_terse(line, max_fields=3)
+            if len(parts) < 2:
+                continue
+            name = parts[0].strip()
+            conn_type = parts[1].strip()
+
+            # Skip non-wifi and hotspot connections
+            if conn_type != "802-11-wireless" and conn_type != "wifi":
+                continue
+            if name == self.hotspot_conn_name:
+                continue
+            if name.startswith("gabiru-wifi-"):
+                # Extract SSID from connection name
+                ssid = name.replace("gabiru-wifi-", "", 1)
+                if ssid and ssid not in saved:
+                    saved.append(ssid)
+            elif name not in saved:
+                # Connection name may be the SSID itself
+                saved.append(name)
+
+        return saved
+
     async def _get_security_for_ssid(self, ssid: str) -> Optional[str]:
         target = (ssid or "").strip()
         if not target:

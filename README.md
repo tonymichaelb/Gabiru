@@ -44,7 +44,7 @@ O Gabiru tem um time-lapse simples:
 
 - `ffmpeg`
 - Uma ferramenta de captura de imagem:
-	- Camera Module: `libcamera-still` (pacote `libcamera-apps`), ou
+	- Camera Module: `rpicam-still` (mais comum em imagens mais novas), ou `libcamera-still` (em algumas distros), pacote `libcamera-apps`, ou
 	- Webcam USB: `fswebcam`
 
 O instalador do Pi tenta instalar isso automaticamente.

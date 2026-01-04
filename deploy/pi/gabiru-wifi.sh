@@ -17,7 +17,7 @@ LOCK_MAX_AGE_S="${CHROMA_WIFI_LOCK_MAX_AGE_S:-180}"
 
 # Tolerance: only activate hotspot after persistent disconnection for this many seconds.
 # This prevents hotspot flapping during WiFi connection stabilization.
-DISCONNECT_GRACE_PERIOD_S="${CHROMA_WIFI_DISCONNECT_GRACE_PERIOD_S:-30}"
+DISCONNECT_GRACE_PERIOD_S="${CHROMA_WIFI_DISCONNECT_GRACE_PERIOD_S:-120}"
 
 # Tracks the timestamp when we first detected disconnection.
 DISCONNECT_START_TS=0

@@ -51,6 +51,35 @@ class WifiManager:
         # separator keeps parsing straightforward and robust.
         self._nmcli_sep = "\t"
         self._nmcli_separator_supported = True
+        # When --separator isn't supported, nmcli defaults to ':' and escapes it as '\:'.
+        self._nmcli_sep_mode: str = "tab"
+
+    def _split_nmcli_terse(self, line: str, *, max_fields: int | None = None) -> list[str]:
+        if self._nmcli_sep_mode == "tab":
+            if max_fields is None:
+                return line.split(self._nmcli_sep)
+            return line.split(self._nmcli_sep, max_fields - 1)
+
+        # Default nmcli -t delimiter ':' with backslash-escaping.
+        # Example: My\:SSID:70:WPA2
+        fields: list[str] = []
+        cur: list[str] = []
+        i = 0
+        while i < len(line):
+            ch = line[i]
+            if ch == "\\" and i + 1 < len(line):
+                cur.append(line[i + 1])
+                i += 2
+                continue
+            if ch == ":" and (max_fields is None or len(fields) < max_fields - 1):
+                fields.append("".join(cur))
+                cur = []
+                i += 1
+                continue
+            cur.append(ch)
+            i += 1
+        fields.append("".join(cur))
+        return fields
 
     async def _run_nmcli_terse(self, *args: str, timeout_s: float = 20.0) -> tuple[int, str, str]:
         if self._nmcli_separator_supported:
@@ -62,16 +91,19 @@ class WifiManager:
                 timeout_s=timeout_s,
             )
             if rc == 0:
+                self._nmcli_sep_mode = "tab"
                 return rc, out, err
 
             # Some older nmcli builds don't support --separator.
             err_l = (err or "").lower()
             if "separator" in err_l and ("unknown" in err_l or "invalid" in err_l or "unrecognized" in err_l):
                 self._nmcli_separator_supported = False
+                self._nmcli_sep_mode = "colon"
             else:
                 # Fail fast for non-separator-related errors.
                 return rc, out, err
 
+        self._nmcli_sep_mode = "colon"
         return await self._run_nmcli("-t", *args, timeout_s=timeout_s)
 
     def is_available(self) -> bool:
@@ -144,7 +176,7 @@ class WifiManager:
         )
         if rc == 0:
             for line in out.splitlines():
-                parts = line.split(self._nmcli_sep)
+                parts = self._split_nmcli_terse(line, max_fields=4)
                 if len(parts) < 4:
                     continue
                 dev, typ, state, conn = parts[0], parts[1], parts[2], parts[3]
@@ -211,7 +243,7 @@ class WifiManager:
         nets: list[WifiNetwork] = []
         for line in out.splitlines():
             # Format: SSID:SIGNAL:SECURITY (SSID may be empty)
-            parts = line.split(self._nmcli_sep, 2)
+            parts = self._split_nmcli_terse(line, max_fields=3)
             if len(parts) < 3:
                 continue
             ssid = parts[0].strip()
@@ -261,7 +293,7 @@ class WifiManager:
             return None
 
         for line in out.splitlines():
-            parts = line.split(self._nmcli_sep, 1)
+            parts = self._split_nmcli_terse(line, max_fields=2)
             if len(parts) < 2:
                 continue
             line_ssid = parts[0].strip()

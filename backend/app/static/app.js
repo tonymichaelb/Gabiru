@@ -15,6 +15,12 @@ const disconnectBtn = $("disconnectBtn");
 const fixedPortLabel = $("fixedPortLabel");
 const updateNowBtn = $("updateNowBtn");
 
+const wifiStatusLabel = $("wifiStatusLabel");
+const wifiScanBtn = $("wifiScanBtn");
+const wifiSsidSelect = $("wifiSsidSelect");
+const wifiPassword = $("wifiPassword");
+const wifiConnectBtn = $("wifiConnectBtn");
+
 const FIXED_SERIAL_PORT = "/dev/ttyACM0";
 const FIXED_BAUDRATE = 115200;
 
@@ -233,6 +239,92 @@ if (updateNowBtn) {
     } finally {
       setTimeout(() => {
         updateNowBtn.disabled = false;
+      }, 4000);
+    }
+  };
+}
+
+async function fetchWifiStatus() {
+  if (!wifiStatusLabel) return null;
+  try {
+    const st = await api("/api/wifi/status");
+    if (!st?.available) {
+      wifiStatusLabel.textContent = "Status: Wi‑Fi indisponível (nmcli não encontrado)";
+      return st;
+    }
+    const ip = st.ip4 ? ` (${st.ip4})` : "";
+    if (st.connected && st.ssid) {
+      wifiStatusLabel.textContent = `Status: conectado em ${st.ssid}${ip}`;
+    } else if (st.hotspot_active) {
+      wifiStatusLabel.textContent = `Status: hotspot ativo (${st.hotspot_ssid})${ip}`;
+    } else {
+      wifiStatusLabel.textContent = `Status: desconectado${ip}`;
+    }
+    return st;
+  } catch {
+    wifiStatusLabel.textContent = "Status: —";
+    return null;
+  }
+}
+
+async function wifiScan() {
+  if (!wifiSsidSelect) return;
+  wifiSsidSelect.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "(selecione uma rede)";
+  wifiSsidSelect.appendChild(placeholder);
+
+  const res = await api("/api/wifi/scan", { method: "POST", body: JSON.stringify({}) });
+  const nets = Array.isArray(res?.networks) ? res.networks : [];
+  for (const n of nets) {
+    const opt = document.createElement("option");
+    opt.value = n.ssid;
+    const sec = n.security && n.security !== "open" ? ` • ${n.security}` : "";
+    const sig = Number.isFinite(n.signal) ? ` • ${n.signal}%` : "";
+    opt.textContent = `${n.ssid}${sig}${sec}`;
+    wifiSsidSelect.appendChild(opt);
+  }
+}
+
+if (wifiScanBtn && wifiConnectBtn) {
+  wifiScanBtn.onclick = async () => {
+    wifiScanBtn.disabled = true;
+    try {
+      await fetchWifiStatus();
+      await wifiScan();
+      notify("ok", "Lista de redes atualizada.");
+    } catch (e) {
+      notify("error", `Falha ao buscar redes: ${String(e?.message || e || "erro")}`);
+    } finally {
+      wifiScanBtn.disabled = false;
+    }
+  };
+
+  wifiConnectBtn.onclick = async () => {
+    const ssid = String(wifiSsidSelect?.value || "").trim();
+    const password = String(wifiPassword?.value || "");
+    if (!ssid) {
+      notify("error", "Selecione uma rede Wi‑Fi.");
+      return;
+    }
+
+    wifiConnectBtn.disabled = true;
+    try {
+      await api("/api/wifi/connect", {
+        method: "POST",
+        body: JSON.stringify({ ssid, password: password || null }),
+      });
+      notify(
+        "warn",
+        "Conectando... se você estiver no hotspot, a conexão pode cair. Depois acesse pelo IP na nova rede."
+      );
+      setTimeout(fetchWifiStatus, 2500);
+    } catch (e) {
+      notify("error", `Falha ao conectar: ${String(e?.message || e || "erro")}`);
+    } finally {
+      setTimeout(() => {
+        wifiConnectBtn.disabled = false;
       }, 4000);
     }
   };
@@ -1356,6 +1448,8 @@ tlRefreshBtn.onclick = async () => {
   try {
     setActiveTab("print");
     startUpdateWatcher();
+    fetchWifiStatus();
+    setInterval(fetchWifiStatus, 10_000);
     await refreshFiles();
     await refreshTimelapse();
   } catch (e) {

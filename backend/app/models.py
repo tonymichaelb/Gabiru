@@ -49,3 +49,8 @@ class SetTemperatureRequest(BaseModel):
 class WsClientCommand(BaseModel):
     type: str
     command: Optional[str] = None
+
+
+class WifiConnectRequest(BaseModel):
+    ssid: str
+    password: Optional[str] = None

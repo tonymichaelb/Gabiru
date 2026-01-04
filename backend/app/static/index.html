@@ -163,6 +163,22 @@
     </section>
 
     <section class="card">
+      <h2>Wi‑Fi</h2>
+      <div class="muted" id="wifiStatusLabel" style="margin-top: 4px;">Status: —</div>
+      <div class="row" style="margin-top: 10px;">
+        <button id="wifiScanBtn" class="secondary">Buscar redes</button>
+        <select id="wifiSsidSelect" style="min-width: 240px;"></select>
+      </div>
+      <div class="row" style="margin-top: 10px;">
+        <input id="wifiPassword" type="password" placeholder="Senha (se houver)" />
+        <button id="wifiConnectBtn">Conectar</button>
+      </div>
+      <div class="muted" style="margin-top: 8px; font-size: 12px;">
+        Se estiver em modo hotspot, ao conectar no Wi‑Fi o hotspot pode desligar.
+      </div>
+    </section>
+
+    <section class="card">
       <h2>Atualização</h2>
       <div class="row">
         <button id="updateNowBtn" class="secondary">Atualizar agora</button>

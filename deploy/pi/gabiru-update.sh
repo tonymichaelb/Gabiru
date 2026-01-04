@@ -10,6 +10,8 @@ UPDATE_SERVICE_SRC="$APP_DIR/deploy/pi/gabiru-update.service"
 UPDATE_SERVICE_DST="/etc/systemd/system/gabiru-update.service"
 UPDATE_TIMER_SRC="$APP_DIR/deploy/pi/gabiru-update.timer"
 UPDATE_TIMER_DST="/etc/systemd/system/gabiru-update.timer"
+WIFI_SERVICE_SRC="$APP_DIR/deploy/pi/gabiru-wifi.service"
+WIFI_SERVICE_DST="/etc/systemd/system/gabiru-wifi.service"
 
 if [[ ! -d "$APP_DIR" ]]; then
   exit 0
@@ -54,6 +56,11 @@ fi
 if [[ -f "$UPDATE_TIMER_SRC" ]]; then
   install -m 0644 "$UPDATE_TIMER_SRC" "$UPDATE_TIMER_DST" || true
 fi
+if [[ -f "$WIFI_SERVICE_SRC" ]]; then
+  install -m 0644 "$WIFI_SERVICE_SRC" "$WIFI_SERVICE_DST" || true
+fi
+
+chmod 0755 "$APP_DIR/deploy/pi/gabiru-wifi.sh" || true
 
 # Ensure venv exists (first install might not have run yet)
 if [[ ! -x "$VENV_PY" ]]; then
@@ -65,3 +72,4 @@ fi
 
 systemctl daemon-reload || true
 systemctl restart gabiru.service
+systemctl restart gabiru-wifi.service || true

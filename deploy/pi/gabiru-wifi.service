@@ -1,0 +1,21 @@
+[Unit]
+Description=Gabiru Wi-Fi fallback hotspot (Chroma-Setup)
+After=network-online.target NetworkManager.service
+Wants=network-online.target NetworkManager.service
+
+[Service]
+Type=simple
+ExecStart=/opt/gabiru/deploy/pi/gabiru-wifi.sh
+Restart=always
+RestartSec=2
+
+# Defaults (override by editing /etc/systemd/system/gabiru-wifi.service)
+Environment=CHROMA_WIFI_IFACE=wlan0
+Environment=CHROMA_AP_SSID=Chroma-Setup
+# Must be at least 8 chars (WPA2)
+Environment=CHROMA_AP_PASS=chroma-setup
+Environment=CHROMA_AP_CONN_NAME=chroma-hotspot
+Environment=CHROMA_WIFI_POLL_S=10
+
+[Install]
+WantedBy=multi-user.target

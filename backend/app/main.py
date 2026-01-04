@@ -27,10 +27,12 @@ from .models import (
     PrinterConnectionState,
     JobState,
     SetTemperatureRequest,
+    WifiConnectRequest,
 )
 from .serial_manager import SerialManager
 from .settings import get_settings
 from .timelapse_manager import TimelapseManager
+from .wifi_manager import WifiManager
 
 settings = get_settings()
 settings.uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -43,6 +45,7 @@ timelapse_manager = TimelapseManager(
     interval_s=settings.timelapse_interval_s,
     fps=settings.timelapse_fps,
 )
+wifi_manager = WifiManager()
 job_manager = JobManager(
     serial_manager=serial_manager,
     uploads_dir=settings.uploads_dir,
@@ -232,6 +235,49 @@ async def api_update() -> dict[str, str]:
         raise HTTPException(status_code=400, detail=str(e))
 
     return {"status": "started"}
+
+
+@app.get("/api/wifi/status")
+async def api_wifi_status() -> dict[str, Any]:
+    st = await wifi_manager.get_status()
+    return {
+        "available": st.available,
+        "iface": st.iface,
+        "connected": st.connected,
+        "ssid": st.ssid,
+        "hotspot_active": st.hotspot_active,
+        "hotspot_ssid": st.hotspot_ssid,
+        "ip4": st.ip4,
+    }
+
+
+@app.post("/api/wifi/scan")
+async def api_wifi_scan() -> dict[str, Any]:
+    st = await wifi_manager.get_status()
+    if not st.available:
+        raise HTTPException(status_code=400, detail="Wi-Fi management unavailable (need nmcli)")
+    nets = await wifi_manager.scan()
+    return {
+        "networks": [
+            {"ssid": n.ssid, "signal": n.signal, "security": n.security}
+            for n in nets
+        ]
+    }
+
+
+@app.post("/api/wifi/connect")
+async def api_wifi_connect(req: WifiConnectRequest) -> dict[str, str]:
+    st = await wifi_manager.get_status()
+    if not st.available:
+        raise HTTPException(status_code=400, detail="Wi-Fi management unavailable (need nmcli)")
+    try:
+        await wifi_manager.connect(ssid=req.ssid, password=req.password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"status": "connecting"}
 
 
 @app.get("/api/timelapse/status")

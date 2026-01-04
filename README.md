@@ -79,6 +79,20 @@ sudo bash deploy/pi/install.sh
 
 - `http://<ip-do-pi>:8000`
 
+### Wi‑Fi fallback (hotspot)
+
+Opcional: quando o Pi não estiver conectado a nenhuma rede Wi‑Fi, ele pode criar um hotspot
+para você entrar e configurar o Wi‑Fi pelo painel.
+
+- SSID padrão: `Chroma-Setup`
+- Senha padrão: `chroma-setup`
+
+O instalador tenta instalar `network-manager` e ativa o serviço:
+
+- [deploy/pi/gabiru-wifi.service](deploy/pi/gabiru-wifi.service)
+
+Você pode ajustar SSID/senha editando `/etc/systemd/system/gabiru-wifi.service`.
+
 ### Auto-update (toda vez que você subir atualização)
 
 O instalador ativa um `systemd timer` que roda periodicamente e faz:

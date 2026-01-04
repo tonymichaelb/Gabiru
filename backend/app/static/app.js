@@ -13,6 +13,7 @@ const panelSystem = $("panelSystem");
 const connectBtn = $("connectBtn");
 const disconnectBtn = $("disconnectBtn");
 const fixedPortLabel = $("fixedPortLabel");
+const updateNowBtn = $("updateNowBtn");
 
 const FIXED_SERIAL_PORT = "/dev/ttyACM0";
 const FIXED_BAUDRATE = 115200;
@@ -213,6 +214,28 @@ async function startUpdateWatcher() {
   // Initial check + polling.
   fetchVersion();
   setInterval(fetchVersion, 30_000);
+}
+
+if (updateNowBtn) {
+  updateNowBtn.onclick = async () => {
+    updateNowBtn.disabled = true;
+    try {
+      await api("/api/update", { method: "POST", body: JSON.stringify({}) });
+      notify("warn", "Atualização iniciada. Aguarde ~30s e recarregue a página.");
+    } catch (e) {
+      // If the service restarts mid-request, the fetch may fail; treat that as "probably updating".
+      const msg = String(e?.message || e || "");
+      if (msg && (msg.includes("Failed to fetch") || msg.includes("NetworkError"))) {
+        notify("warn", "Atualização iniciada. Aguarde ~30s e recarregue a página.");
+      } else {
+        notify("error", `Falha ao atualizar: ${msg || "erro"}`);
+      }
+    } finally {
+      setTimeout(() => {
+        updateNowBtn.disabled = false;
+      }, 4000);
+    }
+  };
 }
 
 function wsSend(command) {

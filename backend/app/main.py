@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 from typing import Optional
@@ -197,6 +198,40 @@ async def api_version() -> dict[str, Optional[str]]:
         "version": getattr(app, "version", None),
         "build": _read_build_id(),
     }
+
+
+@app.post("/api/update")
+async def api_update() -> dict[str, str]:
+    """Trigger an update on the Raspberry Pi.
+
+    Preferred path is systemd: start the oneshot gabiru-update.service.
+    This endpoint returns quickly (it may restart the server shortly after).
+    """
+
+    cmd: list[str] | None = None
+
+    if shutil.which("systemctl"):
+        cmd = ["systemctl", "start", "--no-block", "gabiru-update.service"]
+    else:
+        # Best-effort fallback: run the script if present.
+        script = Path("/opt/gabiru/deploy/pi/gabiru-update.sh")
+        if script.exists():
+            cmd = [str(script)]
+
+    if not cmd:
+        raise HTTPException(status_code=400, detail="Update not supported on this host")
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        asyncio.create_task(proc.wait())
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"status": "started"}
 
 
 @app.get("/api/timelapse/status")

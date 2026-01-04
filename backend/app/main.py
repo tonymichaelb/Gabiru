@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 from typing import Optional
@@ -148,6 +149,44 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Gabiru", version="0.3.2", lifespan=lifespan)
 
 
+# ---------- Update helpers ----------
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+async def _run_cmd(*args: str, cwd: Optional[Path] = None, timeout: float = 20.0) -> tuple[int, str, str]:
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        cwd=str(cwd) if cwd else None,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        out_b, err_b = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        raise
+    out = out_b.decode(errors="replace") if out_b else ""
+    err = err_b.decode(errors="replace") if err_b else ""
+    return proc.returncode or 0, out.strip(), err.strip()
+
+
+async def _git_rev(ref: str) -> Optional[str]:
+    if not shutil.which("git"):
+        return None
+    if not (_REPO_ROOT / ".git").exists():
+        return None
+    rc, out, _ = await _run_cmd("git", "rev-parse", ref, cwd=_REPO_ROOT)
+    return out if rc == 0 else None
+
+
+async def _git_update_status() -> dict[str, Optional[str]]:
+    local = await _git_rev("HEAD")
+    upstream = await _git_rev("@{u}")
+    pending = bool(local and upstream and local != upstream)
+    return {"local": local, "upstream": upstream, "pending": pending}
+
+
 def _read_build_id() -> Optional[str]:
     env_build = (os.getenv("GABIRU_BUILD") or os.getenv("GABIRU_VERSION") or "").strip()
     if env_build:
@@ -203,13 +242,25 @@ async def api_version() -> dict[str, Optional[str]]:
     }
 
 
+@app.get("/api/update/status")
+async def api_update_status() -> dict[str, Any]:
+    """Report if there is an update pending (git)."""
+
+    if not shutil.which("git") or not (_REPO_ROOT / ".git").exists():
+        raise HTTPException(status_code=400, detail="git not available")
+
+    try:
+        status = await _git_update_status()
+        status["version"] = getattr(app, "version", None)
+        status["build"] = _read_build_id()
+        return status
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/api/update")
 async def api_update() -> dict[str, str]:
-    """Trigger an update on the Raspberry Pi.
-
-    Preferred path is systemd: start the oneshot gabiru-update.service.
-    This endpoint returns quickly (it may restart the server shortly after).
-    """
+    """Trigger an update on the Raspberry Pi and report whether a restart was attempted."""
 
     cmd: list[str] | None = None
 

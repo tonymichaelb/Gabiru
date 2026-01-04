@@ -19,8 +19,14 @@ LOCK_MAX_AGE_S="${CHROMA_WIFI_LOCK_MAX_AGE_S:-180}"
 # This prevents hotspot flapping during WiFi connection stabilization.
 DISCONNECT_GRACE_PERIOD_S="${CHROMA_WIFI_DISCONNECT_GRACE_PERIOD_S:-120}"
 
+# Keep hotspot up for a bit after a successful Wi-Fi connection so the user can stay on
+# the configuration page. After this hold, hotspot will be turned off.
+HOTSPOT_HOLD_AFTER_CONNECT_S="${CHROMA_WIFI_HOTSPOT_HOLD_AFTER_CONNECT_S:-120}"
+
 # Tracks the timestamp when we first detected disconnection.
 DISCONNECT_START_TS=0
+# Tracks when Wi-Fi became connected (used to delay hotspot shutdown).
+CONNECTED_START_TS=0
 
 log() {
   echo "[gabiru-wifi] $*"
@@ -115,27 +121,42 @@ stop_hotspot() {
   nmcli con down "${AP_CONN_NAME}" >/dev/null 2>&1 || true
 }
 
-log "monitoring iface=${IFACE} (disconnect grace period: ${DISCONNECT_GRACE_PERIOD_S}s)"
+log "monitoring iface=${IFACE} (disconnect grace: ${DISCONNECT_GRACE_PERIOD_S}s, hotspot hold after connect: ${HOTSPOT_HOLD_AFTER_CONNECT_S}s)"
 
 while true; do
-  # During explicit connect attempts, keep hotspot down to avoid breaking association.
+  # During explicit connect attempts, leave hotspot as-is so the user can keep the page open.
   if lock_is_active || is_wifi_connecting; then
-    if is_hotspot_active; then
-      log "connect in progress; stopping hotspot"
-      stop_hotspot
-    fi
     DISCONNECT_START_TS=0  # Reset grace period timer during active connection attempt
+    CONNECTED_START_TS=0
     sleep "${SLEEP_S}"
     continue
   fi
 
   if is_wifi_connected; then
-    if is_hotspot_active; then
-      log "wifi connected; stopping hotspot"
-      stop_hotspot
-    fi
     DISCONNECT_START_TS=0  # Reset timer on successful connection
+    if is_hotspot_active; then
+      # Start or continue counting hold period.
+      if [[ ${CONNECTED_START_TS} -eq 0 ]]; then
+        CONNECTED_START_TS="$(date +%s)"
+        log "wifi connected; holding hotspot for ${HOTSPOT_HOLD_AFTER_CONNECT_S}s"
+      fi
+
+      local now connected_elapsed
+      now="$(date +%s)"
+      connected_elapsed=$(( now - CONNECTED_START_TS ))
+
+      if [[ ${connected_elapsed} -ge ${HOTSPOT_HOLD_AFTER_CONNECT_S} ]]; then
+        log "hold elapsed; stopping hotspot"
+        stop_hotspot
+      else
+        log "hotspot hold: ${connected_elapsed}/${HOTSPOT_HOLD_AFTER_CONNECT_S}s"
+      fi
+    else
+      # Hotspot already down; reset hold timer.
+      CONNECTED_START_TS=0
+    fi
   else
+    CONNECTED_START_TS=0
     # WiFi is disconnected; start grace period timer if not already started
     if [[ ${DISCONNECT_START_TS} -eq 0 ]]; then
       DISCONNECT_START_TS="$(date +%s)"

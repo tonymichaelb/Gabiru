@@ -58,11 +58,21 @@ start_hotspot() {
 
   # nmcli will create a shared connection with DHCP/NAT.
   local out
-  if ! out="$(nmcli dev wifi hotspot ifname "${IFACE}" ssid "${AP_SSID}" password "${AP_PASS}" name "${AP_CONN_NAME}" 2>&1)"; then
-    log "hotspot failed: ${out}"
-    return 1
+  # NetworkManager CLI uses "con-name" (some environments might accept other aliases).
+  if out="$(nmcli dev wifi hotspot ifname "${IFACE}" ssid "${AP_SSID}" password "${AP_PASS}" con-name "${AP_CONN_NAME}" 2>&1)"; then
+    log "hotspot started: ${out}"
+    return 0
   fi
-  log "hotspot started: ${out}"
+
+  # Fallback for environments that might not support "con-name".
+  if out2="$(nmcli dev wifi hotspot ifname "${IFACE}" ssid "${AP_SSID}" password "${AP_PASS}" name "${AP_CONN_NAME}" 2>&1)"; then
+    log "hotspot started: ${out2}"
+    return 0
+  fi
+
+  log "hotspot failed: ${out}"
+  log "hotspot failed (fallback): ${out2}"
+  return 1
 }
 
 stop_hotspot() {

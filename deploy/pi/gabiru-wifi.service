@@ -16,6 +16,7 @@ Environment=CHROMA_AP_SSID=Chroma-Setup
 Environment=CHROMA_AP_PASS=chroma-setup
 Environment=CHROMA_AP_CONN_NAME=chroma-hotspot
 Environment=CHROMA_WIFI_POLL_S=10
+Environment=CHROMA_WIFI_LOCK_MAX_AGE_S=180
 
 [Install]
 WantedBy=multi-user.target

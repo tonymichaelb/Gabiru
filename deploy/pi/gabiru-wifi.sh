@@ -13,7 +13,7 @@ SLEEP_S="${CHROMA_WIFI_POLL_S:-10}"
 # When the user requests a Wi‑Fi connection via the panel, the backend will create this
 # lock so the watchdog doesn't immediately re-enable hotspot and interrupt the join.
 LOCK_FILE="${CHROMA_WIFI_LOCK_FILE:-/run/gabiru-wifi-connect.lock}"
-LOCK_MAX_AGE_S="${CHROMA_WIFI_LOCK_MAX_AGE_S:-120}"
+LOCK_MAX_AGE_S="${CHROMA_WIFI_LOCK_MAX_AGE_S:-180}"
 
 log() {
   echo "[gabiru-wifi] $*"

@@ -40,6 +40,9 @@ class TimelapseManager:
     def _pick_tool(self) -> Optional[str]:
         if self._capture_tool:
             return self._capture_tool
+        # Newer Raspberry Pi OS uses rpicam-* commands.
+        if shutil.which("rpicam-still"):
+            return "rpicam-still"
         if shutil.which("libcamera-still"):
             return "libcamera-still"
         if shutil.which("fswebcam"):
@@ -64,7 +67,7 @@ class TimelapseManager:
 
             tool = self._pick_tool()
             if tool is None:
-                raise RuntimeError("No camera capture tool found (need libcamera-still or fswebcam)")
+                raise RuntimeError("No camera capture tool found (need rpicam-still, libcamera-still, or fswebcam)")
 
             session = self._new_session_dir(label)
             self._stop.clear()
@@ -116,10 +119,10 @@ class TimelapseManager:
         self.info.running = False
 
     async def _capture_frame(self, tool: str, out: Path) -> None:
-        if tool == "libcamera-still":
+        if tool in ("rpicam-still", "libcamera-still"):
             # -n: no preview, -t 1: short timeout, -o: output file
             proc = await asyncio.create_subprocess_exec(
-                "libcamera-still",
+                tool,
                 "-n",
                 "-t",
                 "1",
@@ -152,7 +155,7 @@ class TimelapseManager:
 
         tool = self._pick_tool()
         if tool is None:
-            raise RuntimeError("No camera capture tool found (need libcamera-still or fswebcam)")
+            raise RuntimeError("No camera capture tool found (need rpicam-still, libcamera-still, or fswebcam)")
 
         out = (self._root / "live.jpg").resolve()
         if self._root.resolve() not in out.parents:

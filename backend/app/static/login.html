@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login - Chroma</title>
+  <link rel="stylesheet" href="/static/styles.css?v=11" />
+  <style>
+    .auth-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+    }
+    
+    .auth-box {
+      background: #222;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .auth-box h1 {
+      margin: 0 0 0.5rem 0;
+      color: #00d4ff;
+      font-size: 2rem;
+      text-align: center;
+    }
+    
+    .auth-box p {
+      color: #888;
+      text-align: center;
+      margin: 0 0 2rem 0;
+      font-size: 0.9rem;
+    }
+    
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #ddd;
+      font-weight: 500;
+    }
+    
+    .form-group input {
+      width: 100%;
+      padding: 0.75rem;
+      background: #333;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    
+    .form-group input:focus {
+      outline: none;
+      border-color: #00d4ff;
+    }
+    
+    .auth-error {
+      background: #441616;
+      border: 1px solid #883333;
+      color: #ffaaaa;
+      padding: 0.75rem;
+      border-radius: 4px;
+      margin-bottom: 1.5rem;
+      display: none;
+    }
+    
+    .auth-error.show {
+      display: block;
+    }
+    
+    .btn-auth {
+      width: 100%;
+      padding: 0.875rem;
+      background: #00d4ff;
+      border: none;
+      border-radius: 4px;
+      color: #000;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .btn-auth:hover {
+      background: #00b8e6;
+    }
+    
+    .btn-auth:disabled {
+      background: #444;
+      color: #888;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-box">
+      <h1>Chroma</h1>
+      <p id="authSubtitle">Bem-vindo de volta</p>
+      
+      <div class="auth-error" id="authError"></div>
+      
+      <!-- Login Form -->
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="loginUsername">Nome de usuário</label>
+          <input type="text" id="loginUsername" autocomplete="username" required />
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Senha</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn-auth" id="loginBtn">Entrar</button>
+      </form>
+      
+      <!-- Register Form (hidden by default) -->
+      <form id="registerForm" style="display:none;">
+        <div class="form-group">
+          <label for="registerUsername">Nome de usuário</label>
+          <input type="text" id="registerUsername" autocomplete="username" required minlength="3" />
+        </div>
+        <div class="form-group">
+          <label for="registerPassword">Senha</label>
+          <input type="password" id="registerPassword" autocomplete="new-password" required minlength="6" />
+        </div>
+        <div class="form-group">
+          <label for="registerPasswordConfirm">Confirmar senha</label>
+          <input type="password" id="registerPasswordConfirm" autocomplete="new-password" required minlength="6" />
+        </div>
+        <button type="submit" class="btn-auth" id="registerBtn">Criar conta</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const authError = document.getElementById('authError');
+    const authSubtitle = document.getElementById('authSubtitle');
+    const loginBtn = document.getElementById('loginBtn');
+    const registerBtn = document.getElementById('registerBtn');
+    
+    function showError(msg) {
+      authError.textContent = msg;
+      authError.classList.add('show');
+    }
+    
+    function hideError() {
+      authError.classList.remove('show');
+    }
+    
+    async function checkAuthStatus() {
+      try {
+        const res = await fetch('/api/auth/status');
+        const data = await res.json();
+        
+        if (!data.has_users) {
+          // No users exist - show registration form
+          authSubtitle.textContent = 'Primeiro acesso - Crie sua conta';
+          loginForm.style.display = 'none';
+          registerForm.style.display = 'block';
+        } else {
+          // Users exist - show login form
+          authSubtitle.textContent = 'Bem-vindo de volta';
+          loginForm.style.display = 'block';
+          registerForm.style.display = 'none';
+        }
+      } catch (err) {
+        showError('Erro ao verificar status de autenticação');
+      }
+    }
+    
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Entrando...';
+      
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('loginUsername').value,
+            password: document.getElementById('loginPassword').value
+          })
+        });
+        
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Erro ao fazer login');
+        }
+        
+        const data = await res.json();
+        localStorage.setItem('chroma_token', data.access_token);
+        window.location.href = '/';
+      } catch (err) {
+        showError(err.message);
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Entrar';
+      }
+    });
+    
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+      registerBtn.disabled = true;
+      registerBtn.textContent = 'Criando conta...';
+      
+      const username = document.getElementById('registerUsername').value;
+      const password = document.getElementById('registerPassword').value;
+      const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
+      
+      if (password !== passwordConfirm) {
+        showError('As senhas não coincidem');
+        registerBtn.disabled = false;
+        registerBtn.textContent = 'Criar conta';
+        return;
+      }
+      
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username,
+            password,
+            password_confirm: passwordConfirm
+          })
+        });
+        
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Erro ao criar conta');
+        }
+        
+        const data = await res.json();
+        localStorage.setItem('chroma_token', data.access_token);
+        window.location.href = '/';
+      } catch (err) {
+        showError(err.message);
+        registerBtn.disabled = false;
+        registerBtn.textContent = 'Criar conta';
+      }
+    });
+    
+    // Check auth status on load
+    checkAuthStatus();
+  </script>
+</body>
+</html>

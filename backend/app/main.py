@@ -10,13 +10,26 @@ from typing import Optional
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from serial.tools import list_ports
 
+from .auth import UserCreate, UserLogin, Token, create_access_token, get_current_user
 from .config_store import ConfigStore
+from . import user_db
+
+
+# Optional auth dependency: if no users exist, allow access
+async def optional_auth(current_user: Optional[str] = Depends(get_current_user)) -> Optional[str]:
+    """
+    Optional authentication - if no users exist (setup mode), allow access.
+    Otherwise require valid JWT token.
+    """
+    if not user_db.has_users():
+        return None  # Setup mode, no auth required
+    return current_user  # Auth required, return current user
 from .gcode_thumbnail import extract_thumbnail
 from .gcode_toolpath import extract_toolpath
 from .job_manager import JobManager
@@ -147,6 +160,54 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Gabiru", version="0.3.2", lifespan=lifespan)
+
+
+# ---------- Authentication Endpoints ----------
+
+@app.get("/api/auth/status")
+async def auth_status():
+    """Check if authentication is required (no users = setup mode)."""
+    return {"has_users": user_db.has_users()}
+
+
+@app.post("/api/auth/register", response_model=Token)
+async def register(user: UserCreate):
+    """Register first user (only works if no users exist)."""
+    if user_db.has_users():
+        raise HTTPException(status_code=400, detail="User already exists")
+    
+    if not user.username or len(user.username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    
+    if not user.password or len(user.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    if user.password != user.password_confirm:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    
+    try:
+        user_db.create_user(username=user.username, password=user.password)
+        token = create_access_token(data={"sub": user.username})
+        return Token(access_token=token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/auth/login", response_model=Token)
+async def login(credentials: UserLogin):
+    """Login with username and password."""
+    user = user_db.authenticate_user(username=credentials.username, password=credentials.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    
+    token = create_access_token(data={"sub": user.username})
+    return Token(access_token=token)
+
+
+@app.get("/api/auth/me")
+async def get_me(current_user: str = Depends(get_current_user)):
+    """Get current authenticated user."""
+    return {"username": current_user}
 
 
 # ---------- Update helpers ----------

@@ -1,3 +1,55 @@
+// ========== Authentication ==========
+
+async function checkAuth() {
+  const token = localStorage.getItem('chroma_token');
+  
+  // Check if system requires authentication
+  try {
+    const statusRes = await fetch('/api/auth/status');
+    const statusData = await statusRes.json();
+    
+    // No users = setup mode, no auth required
+    if (!statusData.has_users) {
+      return true;
+    }
+    
+    // Users exist, need valid token
+    if (!token) {
+      window.location.href = '/static/login.html';
+      return false;
+    }
+    
+    // Validate token
+    const meRes = await fetch('/api/auth/me', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!meRes.ok) {
+      // Invalid token, redirect to login
+      localStorage.removeItem('chroma_token');
+      window.location.href = '/static/login.html';
+      return false;
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Auth check failed:', err);
+    return true; // Allow access on error (graceful degradation)
+  }
+}
+
+// Helper to make authenticated requests
+function authFetch(url, options = {}) {
+  const token = localStorage.getItem('chroma_token');
+  if (token) {
+    options.headers = options.headers || {};
+    options.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return fetch(url, options);
+}
+
+// ========== DOM Elements ==========
+
 const $ = (id) => document.getElementById(id);
 
 const terminal = $("terminal");
@@ -1445,6 +1497,10 @@ tlRefreshBtn.onclick = async () => {
 };
 
 (async function boot() {
+  // Check authentication first
+  const authenticated = await checkAuth();
+  if (!authenticated) return; // Will redirect to login
+  
   try {
     setActiveTab("print");
     startUpdateWatcher();

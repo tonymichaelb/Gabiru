@@ -141,7 +141,6 @@ while true; do
         log "wifi connected; holding hotspot for ${HOTSPOT_HOLD_AFTER_CONNECT_S}s"
       fi
 
-      local now connected_elapsed
       now="$(date +%s)"
       connected_elapsed=$(( now - CONNECTED_START_TS ))
 
@@ -164,7 +163,6 @@ while true; do
     fi
 
     # Check if grace period has elapsed
-    local now elapsed
     now="$(date +%s)"
     elapsed=$(( now - DISCONNECT_START_TS ))
 

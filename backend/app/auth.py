@@ -43,6 +43,12 @@ class UserLogin(BaseModel):
     password: str
 
 
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+    new_password_confirm: str
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

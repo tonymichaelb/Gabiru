@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Chroma</title>
-  <link rel="stylesheet" href="/static/styles.css?v=10" />
+  <link rel="stylesheet" href="/static/styles.css?v=16" />
 </head>
 <body>
   <main class="wrap">
@@ -23,6 +23,7 @@
     <nav class="tabs" aria-label="Abas">
       <button type="button" class="tab active" data-tab="print" id="tabPrint">Impressão</button>
       <button type="button" class="tab" data-tab="motion" id="tabMotion">Movimento</button>
+      <button type="button" class="tab" data-tab="colorir" id="tabColorir">Colorir</button>
       <button type="button" class="tab" data-tab="system" id="tabSystem">Sistema</button>
     </nav>
 
@@ -149,6 +150,229 @@
       </div>
     </section>
 
+    <section class="card">
+      <h2>Temperatura</h2>
+      <div class="row row-temp">
+        <label>
+          Hotend (°C)
+          <input id="hotendSet" type="number" min="0" max="320" step="1" placeholder="Ex.: 200" />
+        </label>
+        <label>
+          Bed (°C)
+          <input id="bedSet" type="number" min="0" max="150" step="1" placeholder="Ex.: 60" />
+        </label>
+        <button id="setTempBtn">Aplicar</button>
+        <button id="hotendOffBtn" class="secondary">Hotend OFF</button>
+        <button id="bedOffBtn" class="secondary">Bed OFF</button>
+        <button id="allOffBtn" class="danger">Tudo OFF</button>
+      </div>
+      <div class="row row-temp-hint">
+        <div class="muted">Usa M104/M140 (não espera aquecer). Status atual em "Hotend/Bed".</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Extrusão / Retração</h2>
+      <div class="row row-extrude">
+        <label>
+          Entrada de filamento (T)
+          <select id="extruderTool">
+            <option value="0" selected>T0</option>
+            <option value="1">T1</option>
+            <option value="2">T2</option>
+            <option value="3">T3</option>
+            <option value="4">T4</option>
+            <option value="5">T5</option>
+            <option value="6">T6</option>
+            <option value="7">T7</option>
+            <option value="8">T8</option>
+            <option value="9">T9</option>
+            <option value="10">T10</option>
+            <option value="11">T11</option>
+            <option value="12">T12</option>
+            <option value="13">T13</option>
+            <option value="14">T14</option>
+            <option value="15">T15</option>
+            <option value="16">T16</option>
+            <option value="17">T17</option>
+            <option value="18">T18</option>
+          </select>
+        </label>
+        <label>
+          Distância (mm)
+          <input id="extrudeAmount" type="number" min="1" max="100" step="1" value="10" />
+        </label>
+        <label>
+          Velocidade (mm/s)
+          <input id="extrudeSpeed" type="number" min="1" max="50" step="1" value="5" />
+        </label>
+        <button id="extrudeBtn">Extruir</button>
+        <button id="retractBtn" class="secondary">Retrair</button>
+      </div>
+      <div class="muted" style="margin-top: 8px; font-size: 12px;">
+        Para 1 bico com várias entradas: seleciona T0–T18 e depois extrude/retire. Certifique-se de que o hotend está aquecido.
+      </div>
+    </section>
+
+    </section>
+
+    <section class="tab-panel hidden" data-tab="colorir" id="panelColorir">
+
+    <section class="card">
+      <h2>Colorir</h2>
+
+      <div class="row" id="pincelButtons" aria-label="Pincéis (T0–T18)">
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="0">Pincel 0</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="1">Pincel 1</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="2">Pincel 2</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="3">Pincel 3</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="4">Pincel 4</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="5">Pincel 5</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="6">Pincel 6</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="7">Pincel 7</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="8">Pincel 8</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="9">Pincel 9</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="10">Pincel 10</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="11">Pincel 11</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="12">Pincel 12</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="13">Pincel 13</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="14">Pincel 14</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="15">Pincel 15</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="16">Pincel 16</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="17">Pincel 17</button>
+        <button type="button" class="secondary pincel-btn" data-pincel-tool="18">Pincel 18</button>
+      </div>
+
+      <div class="muted" style="margin-top: 8px; font-size: 12px;">
+        Selecione um pincel para trabalhar. Requer conexão no WebSocket.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Ajuda</h2>
+      <div class="muted" style="font-size: 12px;">
+        1) Clique em um <b>Pincel</b> (0–18) para selecionar onde vai aplicar a cor.<br />
+        2) Clique em uma <b>Tinta</b> (1–19) para escolher a cor/mistura daquela tinta.<br />
+        3) Para trocar a cor de uma tinta, use o seletor de cor ao lado dela.<br />
+        4) Para ajustar a mistura, selecione a tinta e use <b>Mistura</b> (A/B/C). O total precisa dar <b>100%</b>.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Tintas</h2>
+      <div class="row" id="tintaButtons" aria-label="Tintas">
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="1" data-gcode="M182 A0 B0 C100">1</button>
+          <input type="color" class="tinta-color" data-tinta-id="1" aria-label="Cor da tinta 1" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="2" data-gcode="M182 A100 B0 C0">2</button>
+          <input type="color" class="tinta-color" data-tinta-id="2" aria-label="Cor da tinta 2" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="3" data-gcode="M182 A0 B100 C0">3</button>
+          <input type="color" class="tinta-color" data-tinta-id="3" aria-label="Cor da tinta 3" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="4" data-gcode="M182 A80 B0 C20">4</button>
+          <input type="color" class="tinta-color" data-tinta-id="4" aria-label="Cor da tinta 4" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="5" data-gcode="M182 A90 B0 C10">5</button>
+          <input type="color" class="tinta-color" data-tinta-id="5" aria-label="Cor da tinta 5" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="6" data-gcode="M182 A40 B0 C60">6</button>
+          <input type="color" class="tinta-color" data-tinta-id="6" aria-label="Cor da tinta 6" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="7" data-gcode="M182 A15 B0 C85">7</button>
+          <input type="color" class="tinta-color" data-tinta-id="7" aria-label="Cor da tinta 7" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="8" data-gcode="M182 A20 B10 C70">8</button>
+          <input type="color" class="tinta-color" data-tinta-id="8" aria-label="Cor da tinta 8" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="9" data-gcode="M182 A0 B40 C60">9</button>
+          <input type="color" class="tinta-color" data-tinta-id="9" aria-label="Cor da tinta 9" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="10" data-gcode="M182 A0 B25 C75">10</button>
+          <input type="color" class="tinta-color" data-tinta-id="10" aria-label="Cor da tinta 10" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="11" data-gcode="M182 A10 B80 C10">11</button>
+          <input type="color" class="tinta-color" data-tinta-id="11" aria-label="Cor da tinta 11" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="12" data-gcode="M182 A50 B50 C0">12</button>
+          <input type="color" class="tinta-color" data-tinta-id="12" aria-label="Cor da tinta 12" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="13" data-gcode="M182 A70 B20 C10">13</button>
+          <input type="color" class="tinta-color" data-tinta-id="13" aria-label="Cor da tinta 13" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="14" data-gcode="M182 A33 B33 C34">14</button>
+          <input type="color" class="tinta-color" data-tinta-id="14" aria-label="Cor da tinta 14" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="15" data-gcode="M182 A85 B0 C15">15</button>
+          <input type="color" class="tinta-color" data-tinta-id="15" aria-label="Cor da tinta 15" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="16" data-gcode="M182 A20 B0 C80">16</button>
+          <input type="color" class="tinta-color" data-tinta-id="16" aria-label="Cor da tinta 16" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="17" data-gcode="M182 A70 B10 C20">17</button>
+          <input type="color" class="tinta-color" data-tinta-id="17" aria-label="Cor da tinta 17" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="18" data-gcode="M182 A33 B33 C34">18</button>
+          <input type="color" class="tinta-color" data-tinta-id="18" aria-label="Cor da tinta 18" />
+        </div>
+        <div class="tinta-item">
+          <button type="button" class="secondary round-btn" data-tinta-id="19" data-gcode="M182 A20 B10 C70">19</button>
+          <input type="color" class="tinta-color" data-tinta-id="19" aria-label="Cor da tinta 19" />
+        </div>
+      </div>
+      <div class="muted" style="margin-top: 8px; font-size: 12px;">
+        Clique para selecionar e aplicar uma tinta.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Mistura</h2>
+      <div class="muted" id="tintaMixHint" style="margin-bottom: 10px; font-size: 12px;">
+        Selecione uma tinta (1–19) para ajustar A (azul), B (vermelho), C (amarelo) em %.
+      </div>
+      <div class="row row-mix">
+        <div class="kv"><span>Tinta:</span> <span id="tintaMixSelected">—</span></div>
+        <label>
+          A (azul) %
+          <input id="mixA" type="number" min="0" max="100" step="1" value="33" />
+        </label>
+        <label>
+          B (vermelho) %
+          <input id="mixB" type="number" min="0" max="100" step="1" value="33" />
+        </label>
+        <label>
+          C (amarelo) %
+          <input id="mixC" type="number" min="0" max="100" step="1" value="33" />
+        </label>
+        <button id="mixApplyBtn">Aplicar na tinta</button>
+      </div>
+
+      <div class="kv" style="margin-top: 10px;">
+        <span>Total:</span> <span id="mixTotal">—</span>
+      </div>
+      <div class="muted" style="margin-top: 8px; font-size: 12px;">
+        Isso atualiza a tinta selecionada (o que ela aplica quando você clicar nela).
+      </div>
+    </section>
+
     </section>
 
     <section class="tab-panel hidden" data-tab="system" id="panelSystem">
@@ -189,23 +413,10 @@
     </section>
 
     <section class="card">
-      <h2>Temperatura (manual)</h2>
-      <div class="row row-temp">
-        <label>
-          Hotend (°C)
-          <input id="hotendSet" type="number" min="0" max="320" step="1" placeholder="Ex.: 200" />
-        </label>
-        <label>
-          Bed (°C)
-          <input id="bedSet" type="number" min="0" max="150" step="1" placeholder="Ex.: 60" />
-        </label>
-        <button id="setTempBtn">Aplicar</button>
-        <button id="hotendOffBtn" class="secondary">Hotend OFF</button>
-        <button id="bedOffBtn" class="secondary">Bed OFF</button>
-        <button id="allOffBtn" class="danger">Tudo OFF</button>
-      </div>
-      <div class="row row-temp-hint">
-        <div class="muted">Dica: usa M104/M140 (não espera aquecer). O status atual aparece em “Hotend/Bed”.</div>
+      <h2>Filamento</h2>
+      <div class="muted" id="filamentStatusLabel" style="margin-top: 4px;">Status: —</div>
+      <div class="muted" style="margin-top: 8px; font-size: 12px;">
+        GPIO17 (pino 11). Aberto = com filamento. Fechado = sem filamento.
       </div>
     </section>
 
@@ -219,6 +430,55 @@
       <pre class="terminal" id="terminal"></pre>
     </section>
 
+    <section class="card">
+      <h2>Conta</h2>
+      <div class="row" style="align-items: center;">
+        <div class="muted" id="accountUserLabel">Usuário: —</div>
+        <button id="logoutBtn" class="secondary">Sair</button>
+      </div>
+
+      <div class="row" style="margin-top: 10px;">
+        <div class="muted" id="accountHint" style="font-size: 12px;">Você precisa estar logado para gerenciar conta e usuários.</div>
+      </div>
+
+      <div class="row" style="margin-top: 12px;">
+        <label style="min-width: 260px;">
+          Senha atual
+          <input id="pwCurrent" type="password" />
+        </label>
+        <label style="min-width: 260px;">
+          Nova senha
+          <input id="pwNew" type="password" />
+        </label>
+        <label style="min-width: 260px;">
+          Confirmar nova senha
+          <input id="pwNewConfirm" type="password" />
+        </label>
+        <button id="changePwBtn">Trocar senha</button>
+      </div>
+
+      <div class="row" style="margin-top: 14px;">
+        <label style="min-width: 220px;">
+          Novo usuário
+          <input id="newUserName" placeholder="Ex.: maria" />
+        </label>
+        <label style="min-width: 240px;">
+          Senha
+          <input id="newUserPw" type="password" />
+        </label>
+        <label style="min-width: 260px;">
+          Confirmar senha
+          <input id="newUserPwConfirm" type="password" />
+        </label>
+        <button id="createUserBtn" class="secondary">Criar usuário</button>
+      </div>
+
+      <div class="row" style="margin-top: 14px;">
+        <button id="resetUsersBtn" class="danger">Resetar usuários (apagar todos)</button>
+        <div class="muted" style="font-size: 12px;">Ação perigosa. Só funciona se GABIRU_ALLOW_USER_RESET=1 estiver habilitado.</div>
+      </div>
+    </section>
+
     </section>
   </main>
 
@@ -230,6 +490,6 @@
     </div>
   </footer>
 
-  <script src="/static/app.js?v=17"></script>
+  <script src="/static/app.js?v=26"></script>
 </body>
 </html>

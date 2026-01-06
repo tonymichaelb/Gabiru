@@ -16,7 +16,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from serial.tools import list_ports
 
-from .auth import UserCreate, UserLogin, Token, create_access_token, get_current_user, is_password_too_long
+from .auth import (
+    UserCreate,
+    UserLogin,
+    Token,
+    ChangePassword,
+    create_access_token,
+    get_current_user,
+    is_password_too_long,
+)
 from .config_store import ConfigStore
 from . import user_db
 
@@ -47,6 +55,7 @@ from .serial_manager import SerialManager
 from .settings import get_settings
 from .timelapse_manager import TimelapseManager
 from .wifi_manager import WifiManager
+from .filament_sensor import FilamentSensor
 
 settings = get_settings()
 settings.uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -60,6 +69,7 @@ timelapse_manager = TimelapseManager(
     fps=settings.timelapse_fps,
 )
 wifi_manager = WifiManager()
+filament_sensor = FilamentSensor(gpio=17)
 job_manager = JobManager(
     serial_manager=serial_manager,
     uploads_dir=settings.uploads_dir,
@@ -149,6 +159,10 @@ async def lifespan(_: FastAPI):
                 await timelapse_manager.stop()
         except Exception:
             pass
+        try:
+            filament_sensor.close()
+        except Exception:
+            pass
         status_task.cancel()
         try:
             await status_task
@@ -221,6 +235,71 @@ async def login(credentials: UserLogin):
 async def get_me(current_user: str = Depends(get_current_user)):
     """Get current authenticated user."""
     return {"username": current_user}
+
+
+@app.post("/api/auth/change-password")
+async def change_password(payload: ChangePassword, current_user: str = Depends(get_current_user)):
+    """Change password for the current authenticated user."""
+    if not payload.new_password or len(payload.new_password) < 6:
+        raise HTTPException(status_code=400, detail="A nova senha deve ter pelo menos 6 caracteres")
+
+    if is_password_too_long(payload.new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Senha muito longa. Use uma senha menor (até 72 caracteres; acentos/emoji contam mais).",
+        )
+
+    if payload.new_password != payload.new_password_confirm:
+        raise HTTPException(status_code=400, detail="As senhas não coincidem")
+
+    try:
+        user_db.change_password(
+            username=current_user,
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"ok": True}
+
+
+@app.post("/api/auth/users")
+async def create_additional_user(user: UserCreate, _: str = Depends(get_current_user)):
+    """Create additional users (requires authentication)."""
+    if not user.username or len(user.username) < 3:
+        raise HTTPException(status_code=400, detail="O nome de usuário deve ter pelo menos 3 caracteres")
+
+    if not user.password or len(user.password) < 6:
+        raise HTTPException(status_code=400, detail="A senha deve ter pelo menos 6 caracteres")
+
+    if is_password_too_long(user.password):
+        raise HTTPException(
+            status_code=400,
+            detail="Senha muito longa. Use uma senha menor (até 72 caracteres; acentos/emoji contam mais).",
+        )
+
+    if user.password != user.password_confirm:
+        raise HTTPException(status_code=400, detail="As senhas não coincidem")
+
+    try:
+        user_db.create_user(username=user.username, password=user.password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"ok": True, "username": user.username}
+
+
+@app.post("/api/auth/reset-users")
+async def reset_users(current_user: str = Depends(get_current_user)):
+    """Reset (delete) all users. Disabled by default; enable with env var."""
+    allow = (os.getenv("GABIRU_ALLOW_USER_RESET") or "").strip() == "1"
+    if not allow:
+        raise HTTPException(status_code=403, detail="Recurso desativado. Habilite GABIRU_ALLOW_USER_RESET=1")
+
+    # Require auth (already ensured) and then wipe.
+    user_db.reset_users()
+    return {"ok": True, "by": current_user}
 
 
 # ---------- Update helpers ----------
@@ -641,6 +720,11 @@ async def api_set_temperature(req: SetTemperatureRequest) -> dict[str, Any]:
 @app.get("/api/status", response_model=StatusResponse)
 async def api_status() -> StatusResponse:
     return _make_status()
+
+
+@app.get("/api/filament/status")
+async def api_filament_status() -> dict[str, Any]:
+    return filament_sensor.get_status().to_dict()
 
 
 @app.get("/api/files")

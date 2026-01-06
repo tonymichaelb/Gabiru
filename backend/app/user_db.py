@@ -80,3 +80,25 @@ def authenticate_user(username: str, password: str) -> Optional[User]:
     if not verify_password(password, user.hashed_password):
         return None
     return user
+
+
+def change_password(username: str, current_password: str, new_password: str) -> None:
+    """Change password for an existing user (requires current password)."""
+    users = _load_users()
+    user_data = users.get(username)
+    if not user_data:
+        raise ValueError("Usuário não existe")
+
+    user = User(**user_data)
+    if not verify_password(current_password, user.hashed_password):
+        raise ValueError("Senha atual incorreta")
+
+    user.hashed_password = get_password_hash(new_password)
+    users[username] = user.model_dump()
+    _save_users(users)
+
+
+def reset_users() -> None:
+    """Delete all users (DEV/maintenance operation)."""
+    _ensure_db_exists()
+    DB_FILE.write_text("{}")

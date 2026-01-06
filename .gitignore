@@ -18,6 +18,12 @@ backend/.venv/
 # Local state (do not commit printer-specific config / uploads)
 backend/data/uploads/
 backend/data/config.json
+backend/data/users.json
 
 # Logs
 *.log
+
+# Editor / local backups
+.vscode/
+*.backup
+*.bak

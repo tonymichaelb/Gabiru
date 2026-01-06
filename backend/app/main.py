@@ -185,7 +185,7 @@ async def register(user: UserCreate):
     if is_password_too_long(user.password):
         raise HTTPException(
             status_code=400,
-            detail="Senha muito longa. O limite do sistema é 72 bytes (caracteres especiais contam mais).",
+            detail="Senha muito longa. Use uma senha menor (até 72 caracteres; acentos/emoji contam mais).",
         )
     
     if user.password != user.password_confirm:
@@ -206,7 +206,7 @@ async def login(credentials: UserLogin):
     if is_password_too_long(credentials.password):
         raise HTTPException(
             status_code=400,
-            detail="Senha muito longa. O limite do sistema é 72 bytes (caracteres especiais contam mais).",
+            detail="Senha muito longa. Use uma senha menor (até 72 caracteres; acentos/emoji contam mais).",
         )
 
     user = user_db.authenticate_user(username=credentials.username, password=credentials.password)

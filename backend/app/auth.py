@@ -10,17 +10,14 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
+import bcrypt
 
 
 # JWT Configuration
 SECRET_KEY = os.getenv("CHROMA_SECRET_KEY", secrets.token_urlsafe(32))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
-
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # HTTP Bearer token scheme
 security = HTTPBearer()
@@ -54,10 +51,11 @@ class Token(BaseModel):
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
     try:
-        return pwd_context.verify(plain_password, hashed_password)
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            hashed_password.encode("utf-8"),
+        )
     except (ValueError, TypeError):
-        # bcrypt has a hard 72-byte limit for the *input* password.
-        # If it's longer, passlib may raise ValueError.
         return False
 
 
@@ -71,7 +69,13 @@ def is_password_too_long(password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     """Hash a password for storing."""
-    return pwd_context.hash(password)
+    password_b = password.encode("utf-8")
+    if len(password_b) > MAX_PASSWORD_BYTES:
+        raise ValueError(
+            "Senha muito longa. Use uma senha menor (até 72 caracteres; acentos/emoji contam mais)."
+        )
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password_b, salt).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

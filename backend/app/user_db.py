@@ -58,7 +58,7 @@ def create_user(username: str, password: str) -> User:
     users = _load_users()
     
     if username in users:
-        raise ValueError("User already exists")
+        raise ValueError("Usuário já existe")
     
     user = User(
         username=username,

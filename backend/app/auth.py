@@ -26,6 +26,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 
+MAX_PASSWORD_BYTES = 72
+
+
 class User(BaseModel):
     username: str
     hashed_password: str
@@ -50,7 +53,20 @@ class Token(BaseModel):
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except (ValueError, TypeError):
+        # bcrypt has a hard 72-byte limit for the *input* password.
+        # If it's longer, passlib may raise ValueError.
+        return False
+
+
+def password_byte_len(password: str) -> int:
+    return len(password.encode("utf-8"))
+
+
+def is_password_too_long(password: str) -> bool:
+    return password_byte_len(password) > MAX_PASSWORD_BYTES
 
 
 def get_password_hash(password: str) -> str:
@@ -89,7 +105,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     if username is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Não foi possível validar as credenciais",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return username

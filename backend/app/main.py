@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from serial.tools import list_ports
 
-from .auth import UserCreate, UserLogin, Token, create_access_token, get_current_user
+from .auth import UserCreate, UserLogin, Token, create_access_token, get_current_user, is_password_too_long
 from .config_store import ConfigStore
 from . import user_db
 
@@ -174,31 +174,44 @@ async def auth_status():
 async def register(user: UserCreate):
     """Register first user (only works if no users exist)."""
     if user_db.has_users():
-        raise HTTPException(status_code=400, detail="User already exists")
+        raise HTTPException(status_code=400, detail="Já existe um usuário cadastrado")
     
     if not user.username or len(user.username) < 3:
-        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+        raise HTTPException(status_code=400, detail="O nome de usuário deve ter pelo menos 3 caracteres")
     
     if not user.password or len(user.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        raise HTTPException(status_code=400, detail="A senha deve ter pelo menos 6 caracteres")
+
+    if is_password_too_long(user.password):
+        raise HTTPException(
+            status_code=400,
+            detail="Senha muito longa. O limite do sistema é 72 bytes (caracteres especiais contam mais).",
+        )
     
     if user.password != user.password_confirm:
-        raise HTTPException(status_code=400, detail="Passwords do not match")
+        raise HTTPException(status_code=400, detail="As senhas não coincidem")
     
     try:
         user_db.create_user(username=user.username, password=user.password)
         token = create_access_token(data={"sub": user.username})
         return Token(access_token=token)
     except ValueError as e:
+        # Mensagens de validação em português
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/auth/login", response_model=Token)
 async def login(credentials: UserLogin):
     """Login with username and password."""
+    if is_password_too_long(credentials.password):
+        raise HTTPException(
+            status_code=400,
+            detail="Senha muito longa. O limite do sistema é 72 bytes (caracteres especiais contam mais).",
+        )
+
     user = user_db.authenticate_user(username=credentials.username, password=credentials.password)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
     
     token = create_access_token(data={"sub": user.username})
     return Token(access_token=token)

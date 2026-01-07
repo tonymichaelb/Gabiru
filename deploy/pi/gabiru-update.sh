@@ -66,6 +66,19 @@ _zip_update() {
   local url tmp zip src
   url="${GABIRU_UPDATE_ZIP_URL:-https://github.com/tonymichaelb/Gabiru/archive/refs/heads/main.zip}"
 
+  # Ensure required tools exist. On Raspberry Pi OS / Debian, we can install them.
+  if command -v apt-get >/dev/null 2>&1; then
+    missing=()
+    command -v curl >/dev/null 2>&1 || missing+=(curl)
+    command -v unzip >/dev/null 2>&1 || missing+=(unzip)
+    command -v rsync >/dev/null 2>&1 || missing+=(rsync)
+    if [[ ${#missing[@]} -gt 0 ]]; then
+      echo "[gabiru-update] Installing missing packages: ${missing[*]}"
+      apt-get update -y || true
+      apt-get install -y "${missing[@]}" || true
+    fi
+  fi
+
   if ! command -v curl >/dev/null 2>&1; then
     echo "[gabiru-update] curl not found; cannot run zip update"
     exit 1

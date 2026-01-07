@@ -12,7 +12,7 @@ BRANCH="${GABIRU_BRANCH:-main}"
 
 echo "[1/6] Instalando dependências do sistema..."
 apt-get update -y
-apt-get install -y python3 python3-venv python3-pip git
+apt-get install -y python3 python3-venv python3-pip git curl unzip rsync
 
 # Wi-Fi setup / hotspot fallback (best-effort)
 apt-get install -y network-manager || true

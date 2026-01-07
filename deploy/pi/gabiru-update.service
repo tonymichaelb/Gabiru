@@ -5,4 +5,4 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/opt/gabiru/deploy/pi/gabiru-update.sh
+ExecStart=/usr/bin/env bash /opt/gabiru/deploy/pi/gabiru-update.sh

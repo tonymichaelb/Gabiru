@@ -5,7 +5,7 @@ Wants=network-online.target NetworkManager.service
 
 [Service]
 Type=simple
-ExecStart=/opt/gabiru/deploy/pi/gabiru-wifi.sh
+ExecStart=/usr/bin/env bash /opt/gabiru/deploy/pi/gabiru-wifi.sh
 Restart=always
 RestartSec=2
 

@@ -416,25 +416,49 @@ async def api_update() -> dict[str, str]:
     """Trigger an update on the Raspberry Pi and report whether a restart was attempted."""
 
     cmd: list[str] | None = None
+    mode: str = ""
 
     if shutil.which("systemctl"):
         cmd = ["systemctl", "start", "--no-block", "gabiru-update.service"]
+        mode = "systemctl"
     else:
         # Best-effort fallback: run the script if present.
         script = Path("/opt/gabiru/deploy/pi/gabiru-update.sh")
         if script.exists():
             cmd = [str(script)]
+            mode = "script"
 
     if not cmd:
         raise HTTPException(status_code=400, detail="Update not supported on this host")
 
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        asyncio.create_task(proc.wait())
+        # For systemctl we can (and should) wait for the immediate return code.
+        # It returns quickly, even with --no-block.
+        if mode == "systemctl":
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=6)
+            except asyncio.TimeoutError:
+                # Very unlikely, but don't hang the API.
+                raise HTTPException(status_code=500, detail="timeout ao iniciar serviço de atualização")
+
+            out_b, err_b = await proc.communicate()
+            out = (out_b or b"").decode("utf-8", errors="replace").strip()
+            err = (err_b or b"").decode("utf-8", errors="replace").strip()
+            if proc.returncode != 0:
+                detail = err or out or f"systemctl retornou código {proc.returncode}"
+                raise HTTPException(status_code=400, detail=detail)
+        else:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            asyncio.create_task(proc.wait())
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

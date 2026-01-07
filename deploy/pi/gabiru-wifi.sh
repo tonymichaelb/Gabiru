@@ -15,6 +15,10 @@ SLEEP_S="${CHROMA_WIFI_POLL_S:-10}"
 LOCK_FILE="${CHROMA_WIFI_LOCK_FILE:-/run/gabiru-wifi-connect.lock}"
 LOCK_MAX_AGE_S="${CHROMA_WIFI_LOCK_MAX_AGE_S:-180}"
 
+# If this file exists, hotspot will never be started again until reboot.
+# Use /run so it's cleared on reboot.
+HOTSPOT_DISABLE_FILE="${CHROMA_WIFI_HOTSPOT_DISABLE_FILE:-/run/gabiru-hotspot-disabled.lock}"
+
 # Tolerance: only activate hotspot after persistent disconnection for this many seconds.
 # This prevents hotspot flapping during WiFi connection stabilization.
 DISCONNECT_GRACE_PERIOD_S="${CHROMA_WIFI_DISCONNECT_GRACE_PERIOD_S:-120}"
@@ -121,7 +125,23 @@ stop_hotspot() {
   nmcli con down "${AP_CONN_NAME}" >/dev/null 2>&1 || true
 }
 
+disable_hotspot_until_reboot() {
+  mkdir -p "$(dirname "${HOTSPOT_DISABLE_FILE}")" >/dev/null 2>&1 || true
+  echo "$(date -Is)" >"${HOTSPOT_DISABLE_FILE}" 2>/dev/null || true
+}
+
+hotspot_is_disabled() {
+  [[ -f "${HOTSPOT_DISABLE_FILE}" ]]
+}
+
 log "monitoring iface=${IFACE} (disconnect grace: ${DISCONNECT_GRACE_PERIOD_S}s, hotspot hold after connect: ${HOTSPOT_HOLD_AFTER_CONNECT_S}s)"
+
+# If we already have Wi-Fi at boot, never enable hotspot in this boot session.
+if is_wifi_connected; then
+  disable_hotspot_until_reboot
+  stop_hotspot
+  log "wifi connected at boot; hotspot disabled until reboot"
+fi
 
 while true; do
   # During explicit connect attempts, leave hotspot as-is so the user can keep the page open.
@@ -134,28 +154,35 @@ while true; do
 
   if is_wifi_connected; then
     DISCONNECT_START_TS=0  # Reset timer on successful connection
+
+    # Once Wi-Fi is connected, disable hotspot for the rest of this boot.
+    if ! hotspot_is_disabled; then
+      disable_hotspot_until_reboot
+      log "wifi connected; hotspot disabled until reboot"
+    fi
+
     if is_hotspot_active; then
-      # Start or continue counting hold period.
-      if [[ ${CONNECTED_START_TS} -eq 0 ]]; then
-        CONNECTED_START_TS="$(date +%s)"
-        log "wifi connected; holding hotspot for ${HOTSPOT_HOLD_AFTER_CONNECT_S}s"
-      fi
-
-      now="$(date +%s)"
-      connected_elapsed=$(( now - CONNECTED_START_TS ))
-
-      if [[ ${connected_elapsed} -ge ${HOTSPOT_HOLD_AFTER_CONNECT_S} ]]; then
-        log "hold elapsed; stopping hotspot"
-        stop_hotspot
-      else
-        log "hotspot hold: ${connected_elapsed}/${HOTSPOT_HOLD_AFTER_CONNECT_S}s"
-      fi
+      # Requirement: if Wi-Fi is connected, hotspot should turn off.
+      log "wifi connected; stopping hotspot"
+      stop_hotspot
     else
-      # Hotspot already down; reset hold timer.
+      # Hotspot already down.
       CONNECTED_START_TS=0
     fi
   else
     CONNECTED_START_TS=0
+
+    # If Wi-Fi has connected at least once this boot, never start hotspot again.
+    if hotspot_is_disabled; then
+      DISCONNECT_START_TS=0
+      if is_hotspot_active; then
+        log "hotspot disabled; stopping hotspot"
+        stop_hotspot
+      fi
+      sleep "${SLEEP_S}"
+      continue
+    fi
+
     # WiFi is disconnected; start grace period timer if not already started
     if [[ ${DISCONNECT_START_TS} -eq 0 ]]; then
       DISCONNECT_START_TS="$(date +%s)"

@@ -52,8 +52,8 @@ _ensure_venv_and_deps() {
     python3 -m venv "$BACKEND_DIR/.venv"
   fi
 
-  "$VENV_PY" -m pip install -U pip >/dev/null
-  "$VENV_PY" -m pip install -r "$BACKEND_DIR/requirements.txt" >/dev/null
+  "$VENV_PY" -m pip install -U pip
+  "$VENV_PY" -m pip install -r "$BACKEND_DIR/requirements.txt"
 }
 
 _restart_services() {

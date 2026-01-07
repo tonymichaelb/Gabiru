@@ -6,3 +6,5 @@ python-multipart==0.0.20
 bcrypt==5.0.0
 python-jose[cryptography]==3.3.0
 gpiozero==2.0.1
+RPi.GPIO==0.7.1; sys_platform == "linux" and platform_machine == "armv7l"
+RPi.GPIO==0.7.1; sys_platform == "linux" and platform_machine == "aarch64"

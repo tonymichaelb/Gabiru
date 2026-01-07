@@ -173,7 +173,7 @@ async def lifespan(_: FastAPI):
         await serial_manager.disconnect()
 
 
-app = FastAPI(title="Gabiru", version="0.3.3", lifespan=lifespan)
+app = FastAPI(title="Gabiru", version="0.3.4", lifespan=lifespan)
 
 
 # ---------- Authentication Endpoints ----------

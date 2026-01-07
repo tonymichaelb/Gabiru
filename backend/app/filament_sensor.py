@@ -49,15 +49,46 @@ class FilamentSensor:
         if self._supported is not None:
             return
 
-        try:
-            from gpiozero import Button  # type: ignore
+        def _try_gpiozero_with_factory(factory: object | None) -> None:
+            from gpiozero import Button, Device  # type: ignore
 
+            if factory is not None:
+                Device.pin_factory = factory  # type: ignore[attr-defined]
             self._button = Button(self.gpio, pull_up=True, bounce_time=self._bounce_time_s)
+
+        try:
+            # First try: default factory (works on many Pi setups)
+            _try_gpiozero_with_factory(None)
             self._supported = True
+            return
         except Exception as e:
-            self._supported = False
-            self._button = None
-            self._error = str(e)
+            first_err = e
+
+        # Second try: lgpio (common on Raspberry Pi OS Bookworm)
+        try:
+            from gpiozero.pins.lgpio import LGPIOFactory  # type: ignore
+
+            _try_gpiozero_with_factory(LGPIOFactory())
+            self._supported = True
+            self._error = None
+            return
+        except Exception as e:
+            second_err = e
+
+        # Third try: RPi.GPIO (common on older Raspberry Pi OS)
+        try:
+            from gpiozero.pins.rpigpio import RPiGPIOFactory  # type: ignore
+
+            _try_gpiozero_with_factory(RPiGPIOFactory())
+            self._supported = True
+            self._error = None
+            return
+        except Exception as e:
+            third_err = e
+
+        self._supported = False
+        self._button = None
+        self._error = f"gpio init failed: default=({first_err}) lgpio=({second_err}) rpigpio=({third_err})"
 
     def get_status(self) -> FilamentStatus:
         self._ensure()

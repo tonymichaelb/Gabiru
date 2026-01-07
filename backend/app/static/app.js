@@ -2009,7 +2009,9 @@ async function fetchFilamentStatus() {
   try {
     const st = await api("/api/filament/status");
     if (!st || !st.supported) {
-      filamentStatusLabel.textContent = "Status: indisponível";
+      const err = st && typeof st === "object" ? String(st.error || "") : "";
+      const short = err ? ` (${err.slice(0, 80)})` : "";
+      filamentStatusLabel.textContent = `Status: indisponível${short}`;
       return;
     }
     if (st.has_filament === true) {

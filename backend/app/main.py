@@ -441,6 +441,22 @@ async def api_update() -> dict[str, str]:
     return {"status": "started"}
 
 
+@app.get("/api/update/log")
+async def api_update_log() -> dict[str, str]:
+    """Return the last part of the update log (best-effort)."""
+
+    # On Raspberry installs, deploy/pi/gabiru-update.sh appends to backend/data/update.log
+    path = settings.data_dir / "update.log"
+    if not path.exists() or not path.is_file():
+        return {"log": ""}
+    try:
+        # Keep payload small
+        data = path.read_text(encoding="utf-8", errors="replace")
+        return {"log": data[-20000:]}
+    except Exception as e:
+        return {"log": f"[erro] {e}\n"}
+
+
 @app.get("/api/wifi/status")
 async def api_wifi_status() -> dict[str, Any]:
     st = await wifi_manager.get_status()

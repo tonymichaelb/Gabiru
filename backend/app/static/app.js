@@ -350,6 +350,7 @@ const connectBtn = $("connectBtn");
 const disconnectBtn = $("disconnectBtn");
 const fixedPortLabel = $("fixedPortLabel");
 const updateNowBtn = $("updateNowBtn");
+const updateLog = $("updateLog");
 
 const wifiStatusLabel = $("wifiStatusLabel");
 const wifiScanBtn = $("wifiScanBtn");
@@ -624,6 +625,7 @@ if (updateNowBtn) {
   updateNowBtn.onclick = async () => {
     updateNowBtn.disabled = true;
     try {
+      if (updateLog) updateLog.textContent = "[atualização] iniciando...\n";
       await api("/api/update", { method: "POST", body: JSON.stringify({}) });
       notify("warn", "Atualização iniciada. Aguarde ~30s e recarregue a página.");
     } catch (e) {
@@ -638,6 +640,24 @@ if (updateNowBtn) {
       setTimeout(() => {
         updateNowBtn.disabled = false;
       }, 4000);
+    }
+
+    // Show update progress (best-effort)
+    if (updateLog) {
+      const startedAt = Date.now();
+      const tick = async () => {
+        try {
+          const res = await api("/api/update/log");
+          const text = res && typeof res === "object" ? String(res.log || "") : "";
+          updateLog.textContent = text;
+        } catch {}
+
+        // Poll for ~90s (the service may restart the app mid-way)
+        if (Date.now() - startedAt < 90_000) {
+          setTimeout(tick, 1000);
+        }
+      };
+      tick();
     }
   };
 }

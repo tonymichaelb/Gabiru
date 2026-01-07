@@ -58,4 +58,4 @@ systemctl restart gabiru.service
 systemctl restart gabiru-update.timer
 systemctl restart gabiru-wifi.service || true
 
-echo "OK: Gabiru rodando em http://<ip-do-pi>:8000"
+echo "OK: Gabiru rodando em http://<ip-do-pi>:8080"

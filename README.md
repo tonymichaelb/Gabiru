@@ -20,12 +20,12 @@ python3 -m venv .venv
 3) Inicie o servidor:
 
 ```bash
-./.venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+./.venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8080
 ```
 
 4) Abra no navegador:
 
-- http://localhost:8000
+- http://localhost:8080
 
 ## Observações
 
@@ -77,7 +77,7 @@ sudo bash deploy/pi/install.sh
 
 3) Acesse no navegador:
 
-- `http://<ip-do-pi>:8000`
+- `http://<ip-do-pi>:8080`
 
 ### Wi‑Fi fallback (hotspot)
 

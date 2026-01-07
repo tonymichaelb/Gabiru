@@ -623,7 +623,9 @@ async function startUpdateWatcher() {
 
 if (updateNowBtn) {
   updateNowBtn.onclick = async () => {
+    const originalLabel = updateNowBtn.textContent;
     updateNowBtn.disabled = true;
+    updateNowBtn.textContent = "Atualizando...";
     try {
       if (updateLog) updateLog.textContent = "[atualização] iniciando...\n";
       await api("/api/update", { method: "POST", body: JSON.stringify({}) });
@@ -635,22 +637,39 @@ if (updateNowBtn) {
         notify("warn", "Atualização iniciada. Aguarde ~30s e recarregue a página.");
       } else {
         notify("error", `Falha ao atualizar: ${msg || "erro"}`);
+        if (updateLog) updateLog.textContent += `[atualização] falha ao iniciar: ${msg || "erro"}\n`;
       }
     } finally {
       setTimeout(() => {
         updateNowBtn.disabled = false;
+        updateNowBtn.textContent = originalLabel || "Atualizar agora";
       }, 4000);
     }
 
     // Show update progress (best-effort)
     if (updateLog) {
       const startedAt = Date.now();
+      let failures = 0;
+      let lastNonEmptyLog = updateLog.textContent || "";
       const tick = async () => {
         try {
           const res = await api("/api/update/log");
           const text = res && typeof res === "object" ? String(res.log || "") : "";
-          updateLog.textContent = text;
-        } catch {}
+          if (text && text.trim()) {
+            updateLog.textContent = text;
+            lastNonEmptyLog = text;
+          } else if (lastNonEmptyLog && lastNonEmptyLog.trim()) {
+            // Keep the last meaningful log if the endpoint returns empty temporarily.
+            updateLog.textContent = lastNonEmptyLog;
+          }
+          failures = 0;
+        } catch (e) {
+          failures += 1;
+          if (failures === 1) {
+            const msg = String(e?.message || e || "");
+            updateLog.textContent += `[atualização] aguardando servidor... ${msg ? `(${msg})` : ""}\n`;
+          }
+        }
 
         // Poll for ~90s (the service may restart the app mid-way)
         if (Date.now() - startedAt < 90_000) {

@@ -37,7 +37,7 @@ log() {
 }
 
 if ! command -v nmcli >/dev/null 2>&1; then
-  log "nmcli not found; Wi-Fi fallback disabled"
+  log "nmcli não encontrado; fallback de Wi‑Fi desativado"
   exit 0
 fi
 
@@ -95,7 +95,7 @@ start_hotspot() {
     return 0
   fi
 
-  log "starting hotspot SSID=${AP_SSID}"
+  log "iniciando hotspot SSID=${AP_SSID}"
 
   ensure_wifi_radio_on
 
@@ -106,18 +106,18 @@ start_hotspot() {
   local out
   # NetworkManager CLI uses "con-name" (some environments might accept other aliases).
   if out="$(nmcli dev wifi hotspot ifname "${IFACE}" ssid "${AP_SSID}" password "${AP_PASS}" con-name "${AP_CONN_NAME}" 2>&1)"; then
-    log "hotspot started: ${out}"
+    log "hotspot iniciado: ${out}"
     return 0
   fi
 
   # Fallback for environments that might not support "con-name".
   if out2="$(nmcli dev wifi hotspot ifname "${IFACE}" ssid "${AP_SSID}" password "${AP_PASS}" name "${AP_CONN_NAME}" 2>&1)"; then
-    log "hotspot started: ${out2}"
+    log "hotspot iniciado: ${out2}"
     return 0
   fi
 
-  log "hotspot failed: ${out}"
-  log "hotspot failed (fallback): ${out2}"
+  log "falha ao iniciar hotspot: ${out}"
+  log "falha ao iniciar hotspot (fallback): ${out2}"
   return 1
 }
 
@@ -134,13 +134,13 @@ hotspot_is_disabled() {
   [[ -f "${HOTSPOT_DISABLE_FILE}" ]]
 }
 
-log "monitoring iface=${IFACE} (disconnect grace: ${DISCONNECT_GRACE_PERIOD_S}s, hotspot hold after connect: ${HOTSPOT_HOLD_AFTER_CONNECT_S}s)"
+log "monitorando iface=${IFACE} (tolerância desconectado: ${DISCONNECT_GRACE_PERIOD_S}s, espera após conectar: ${HOTSPOT_HOLD_AFTER_CONNECT_S}s)"
 
 # If we already have Wi-Fi at boot, never enable hotspot in this boot session.
 if is_wifi_connected; then
   disable_hotspot_until_reboot
   stop_hotspot
-  log "wifi connected at boot; hotspot disabled until reboot"
+  log "wifi conectado no boot; hotspot desativado até reiniciar"
 fi
 
 while true; do
@@ -158,12 +158,12 @@ while true; do
     # Once Wi-Fi is connected, disable hotspot for the rest of this boot.
     if ! hotspot_is_disabled; then
       disable_hotspot_until_reboot
-      log "wifi connected; hotspot disabled until reboot"
+      log "wifi conectado; hotspot desativado até reiniciar"
     fi
 
     if is_hotspot_active; then
       # Requirement: if Wi-Fi is connected, hotspot should turn off.
-      log "wifi connected; stopping hotspot"
+      log "wifi conectado; desligando hotspot"
       stop_hotspot
     else
       # Hotspot already down.
@@ -176,7 +176,7 @@ while true; do
     if hotspot_is_disabled; then
       DISCONNECT_START_TS=0
       if is_hotspot_active; then
-        log "hotspot disabled; stopping hotspot"
+        log "hotspot desativado; desligando hotspot"
         stop_hotspot
       fi
       sleep "${SLEEP_S}"
@@ -186,7 +186,7 @@ while true; do
     # WiFi is disconnected; start grace period timer if not already started
     if [[ ${DISCONNECT_START_TS} -eq 0 ]]; then
       DISCONNECT_START_TS="$(date +%s)"
-      log "wifi disconnected; grace period starting (${DISCONNECT_GRACE_PERIOD_S}s)"
+      log "wifi desconectado; iniciando tolerância (${DISCONNECT_GRACE_PERIOD_S}s)"
     fi
 
     # Check if grace period has elapsed
@@ -199,7 +199,7 @@ while true; do
       start_hotspot || true
     else
       # Still within grace period; wait a bit longer before activating hotspot
-      log "grace period: ${elapsed}/${DISCONNECT_GRACE_PERIOD_S}s"
+      log "tolerância: ${elapsed}/${DISCONNECT_GRACE_PERIOD_S}s"
     fi
   fi
 

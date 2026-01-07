@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Login - Chroma</title>
-  <link rel="stylesheet" href="/static/styles.css?v=11" />
+  <link rel="stylesheet" href="/static/styles.css?v=12" />
   <style>
     .auth-container {
       display: flex;
@@ -22,6 +22,14 @@
       width: 100%;
       max-width: 400px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .auth-logo {
+      display: block;
+      width: 140px;
+      max-width: 70%;
+      height: auto;
+      margin: 0 auto 0.75rem;
     }
     
     .auth-box h1 {
@@ -106,6 +114,7 @@
 <body>
   <div class="auth-container">
     <div class="auth-box">
+      <img class="auth-logo" src="/static/logo-branca.png" alt="Chroma" />
       <h1>Chroma</h1>
       <p id="authSubtitle">Bem-vindo de volta</p>
       

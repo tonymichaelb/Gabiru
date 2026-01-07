@@ -21,6 +21,18 @@ body { margin: 0; font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sa
 .bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .status { padding: 6px 10px; border-radius: 999px; background: var(--chip); border: 1px solid var(--chip-border); }
 
+.brand {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.brand-logo {
+	height: 28px;
+	width: auto;
+	display: block;
+}
+
 .update-banner {
 	margin: 10px 0 12px;
 	padding: 10px 12px;

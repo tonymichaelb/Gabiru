@@ -17,6 +17,7 @@ class JobInfo:
     progress: float = 0.0
     line: Optional[int] = None
     total_lines: Optional[int] = None
+    error: Optional[str] = None
 
 
 class JobManager:
@@ -139,19 +140,23 @@ class JobManager:
         self.info = JobInfo()
 
     async def _run_file(self, path: Path) -> None:
-        # Always run homing + leveling before printing the file.
-        # Keep job line/progress accounting based on the file itself.
+        # Always run homing before printing the file.
+        # NOTE: Do NOT run G29 automatically here.
+        # Many printers either don't support it or it can take much longer than typical
+        # command timeouts, which would abort the job right after homing.
+        # If the user needs leveling, it should be in the start G-code (slicer) or run
+        # manually via the UI button.
         try:
-            for cmd in ("G28", "G29"):
+            for cmd, timeout_s in (("G28", 60.0),):
                 await self._pause_event.wait()
                 if self._cancel:
                     self.info = JobInfo()
                     return
-                await self._serial.send_and_wait_ok(cmd)
-        except Exception:
-            # If preflight fails (e.g., probing error), stop the job.
+                await self._serial.send_and_wait_ok(cmd, timeout_s=timeout_s)
+        except Exception as e:
+            # If preflight fails, stop the job and keep a visible error.
             await self._set_led_rgb_best_effort(255, 0, 0)
-            self.info = JobInfo()
+            self.info = JobInfo(state=JobState.idle, filename=self.info.filename, error=f"Falha no pré-início: {e}")
             return
 
         lines = path.read_text(errors="ignore").splitlines()
@@ -189,10 +194,10 @@ class JobManager:
 
             try:
                 await self._serial.send_and_wait_ok(line)
-            except Exception:
+            except Exception as e:
                 # Error state LED: red
                 await self._set_led_rgb_best_effort(255, 0, 0)
-                self.info = JobInfo()
+                self.info = JobInfo(state=JobState.idle, filename=self.info.filename, error=f"Falha na impressão: {e}")
                 return
             self.info.progress = (idx + 1) / total
 

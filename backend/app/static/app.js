@@ -485,6 +485,8 @@ let selectedFilename = "";
 
 let lastStatus;
 
+let lastJobError = "";
+
 let updateBaselineKey;
 
 function setFooterVersionText({ version, build } = {}) {
@@ -1625,6 +1627,19 @@ function renderStatus(s) {
   jobProgress.textContent = `${Math.round((s.progress || 0) * 100)}%`;
   hotend.textContent = s.hotend_c == null ? "—" : `${s.hotend_c.toFixed(1)}°C`;
   bed.textContent = s.bed_c == null ? "—" : `${s.bed_c.toFixed(1)}°C`;
+
+  // Surface job errors clearly (preflight failures, timeouts, etc.)
+  try {
+    const err = s && typeof s === "object" ? String(s.job_error || "").trim() : "";
+    if (err && err !== lastJobError) {
+      lastJobError = err;
+      log(`[erro] ${err}`);
+      notify("error", err);
+    }
+    if (!err) lastJobError = "";
+  } catch {
+    // ignore
+  }
 
   const connected = s.connection === "connected";
   const enable = connected;

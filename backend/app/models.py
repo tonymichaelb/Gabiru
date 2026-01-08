@@ -33,6 +33,7 @@ class StatusResponse(BaseModel):
     progress: float = Field(default=0.0, ge=0.0, le=1.0)
     job_line: Optional[int] = Field(default=None, ge=0)
     job_total_lines: Optional[int] = Field(default=None, ge=1)
+    job_error: Optional[str] = None
     hotend_c: Optional[float] = None
     bed_c: Optional[float] = None
 

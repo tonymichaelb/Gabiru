@@ -653,6 +653,7 @@ def _make_status() -> StatusResponse:
         progress=job_manager.info.progress,
         job_line=job_manager.info.line,
         job_total_lines=job_manager.info.total_lines,
+        job_error=job_manager.info.error,
         hotend_c=serial_manager.state.hotend_c,
         bed_c=serial_manager.state.bed_c,
     )

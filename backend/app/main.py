@@ -875,22 +875,33 @@ async def ws_endpoint(ws: WebSocket) -> None:
     try:
         await ws.send_json({"type": "status", "data": _make_status().model_dump()})
         while True:
-            raw = await ws.receive_json()
-            cmd = WsClientCommand.model_validate(raw)
-            if cmd.type == "send" and cmd.command:
-                try:
-                    await serial_manager.send(cmd.command)
-                except Exception as e:
-                    await ws.send_json({"type": "error", "message": str(e)})
-            elif cmd.type == "poll":
-                # Ask printer for temps; status broadcast will include last parsed temps
-                if serial_manager.is_connected:
+            try:
+                raw = await ws.receive_json()
+                cmd = WsClientCommand.model_validate(raw)
+                if cmd.type == "send" and cmd.command:
                     try:
-                        await serial_manager.send("M105")
-                    except Exception:
-                        pass
-                await ws.send_json({"type": "status", "data": _make_status().model_dump()})
+                        await serial_manager.send(cmd.command)
+                    except Exception as e:
+                        await ws.send_json({"type": "error", "message": str(e)})
+                elif cmd.type == "poll":
+                    # Ask printer for temps; status broadcast will include last parsed temps
+                    if serial_manager.is_connected:
+                        try:
+                            await serial_manager.send("M105")
+                        except Exception:
+                            pass
+                    await ws.send_json({"type": "status", "data": _make_status().model_dump()})
+            except Exception as e:
+                # Log unexpected error but don't disconnect - keep connection alive
+                print(f"[ws] Erro no loop: {e}")
+                try:
+                    await ws.send_json({"type": "error", "message": f"Erro interno: {str(e)}"})
+                except Exception:
+                    # If send fails, exit loop
+                    break
     except WebSocketDisconnect:
         pass
+    except Exception as e:
+        print(f"[ws] Erro crítico: {e}")
     finally:
         await hub.remove(ws)

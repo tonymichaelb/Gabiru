@@ -106,7 +106,7 @@ class JobManager:
 
         # Printing state LED: white
         await self._set_led_rgb_best_effort(255, 255, 255)
-        self._task = asyncio.create_task(self._run_file(path))
+        self._task = asyncio.create_task(self._run_file_safe(path))
 
     async def pause(self) -> None:
         if self.info.state != JobState.printing:
@@ -138,6 +138,16 @@ class JobManager:
             except Exception:
                 pass
         self.info = JobInfo()
+
+    async def _run_file_safe(self, path: Path) -> None:
+        """Wrapper para _run_file que captura exceções não tratadas."""
+        try:
+            await self._run_file(path)
+        except Exception as e:
+            # Capture unexpected exceptions and set error state
+            print(f"[job] Erro não tratado em _run_file: {e}")
+            await self._set_led_rgb_best_effort(255, 0, 0)
+            self.info = JobInfo(state=JobState.idle, filename=self.info.filename, error=f"Falha na impressão: Erro interno: {str(e)}")
 
     async def _run_file(self, path: Path) -> None:
         # Do NOT run G28/G29 automatically.

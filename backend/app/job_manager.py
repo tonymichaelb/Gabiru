@@ -140,24 +140,9 @@ class JobManager:
         self.info = JobInfo()
 
     async def _run_file(self, path: Path) -> None:
-        # Always run homing before printing the file.
-        # NOTE: Do NOT run G29 automatically here.
-        # Many printers either don't support it or it can take much longer than typical
-        # command timeouts, which would abort the job right after homing.
-        # If the user needs leveling, it should be in the start G-code (slicer) or run
-        # manually via the UI button.
-        try:
-            for cmd, timeout_s in (("G28", 60.0),):
-                await self._pause_event.wait()
-                if self._cancel:
-                    self.info = JobInfo()
-                    return
-                await self._serial.send_and_wait_ok(cmd, timeout_s=timeout_s)
-        except Exception as e:
-            # If preflight fails, stop the job and keep a visible error.
-            await self._set_led_rgb_best_effort(255, 0, 0)
-            self.info = JobInfo(state=JobState.idle, filename=self.info.filename, error=f"Falha no pré-início: {e}")
-            return
+        # Do NOT run G28/G29 automatically.
+        # Let the slicer's start G-code handle homing/leveling, or user can do it manually via UI buttons.
+        # This avoids timeouts that abort the print immediately.
 
         lines = path.read_text(errors="ignore").splitlines()
         total = max(len(lines), 1)

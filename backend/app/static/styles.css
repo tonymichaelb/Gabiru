@@ -21,18 +21,6 @@ body { margin: 0; font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sa
 .bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .status { padding: 6px 10px; border-radius: 999px; background: var(--chip); border: 1px solid var(--chip-border); }
 
-.brand {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-}
-
-.brand-logo {
-	height: 28px;
-	width: auto;
-	display: block;
-}
-
 .update-banner {
 	margin: 10px 0 12px;
 	padding: 10px 12px;
@@ -96,80 +84,18 @@ button.secondary { background: var(--btn-secondary); color: var(--btn-secondary-
 button.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-@media (prefers-reduced-motion: no-preference) {
-	button {
-		transition: transform 120ms ease, filter 120ms ease;
-	}
-	button:hover {
-		transform: translateY(-1px) scale(1.02);
-		filter: brightness(1.06);
-	}
-	button:active {
-		transform: translateY(0px) scale(0.98);
-	}
-
-	@keyframes chroma-pop {
-		0% { transform: scale(0.96); }
-		60% { transform: scale(1.06); }
-		100% { transform: scale(1.00); }
-	}
-
-	@keyframes chroma-pulse {
-		0% { filter: brightness(1.00); }
-		50% { filter: brightness(1.12); }
-		100% { filter: brightness(1.00); }
-	}
-
-	.round-btn.active,
-	.pincel-btn.active {
-		animation: chroma-pulse 900ms ease-in-out infinite;
-	}
-
-	.round-btn:active,
-	.pincel-btn:active {
-		animation: chroma-pop 180ms ease-out;
-	}
-}
-
 .round-btn {
-	width: 56px;
-	height: 56px;
+	width: 44px;
+	height: 44px;
 	padding: 0;
 	border-radius: 999px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-width: 56px;
-	font-size: 14px;
+	min-width: 44px;
 }
 
 .round-btn.active {
-	border-color: var(--fg);
-	outline: 2px solid var(--fg);
-	outline-offset: 1px;
-}
-
-.tinta-item {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 6px;
-}
-
-.tinta-color {
-	width: 56px;
-	height: 34px;
-	padding: 0;
-	border: 1px solid var(--border);
-	border-radius: 8px;
-	background: var(--panel);
-}
-
-.row-mix input[type="number"] {
-	min-width: 120px;
-}
-
-.pincel-btn.active {
 	border-color: var(--fg);
 	outline: 2px solid var(--fg);
 	outline-offset: 1px;

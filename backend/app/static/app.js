@@ -83,20 +83,8 @@ const panelMotion = $("panelMotion");
 const panelColorir = $("panelColorir");
 const panelSystem = $("panelSystem");
 
-const filamentStatusLabel = $("filamentStatusLabel");
-
 const pincelButtons = $("pincelButtons");
 const tintaButtons = $("tintaButtons");
-
-const tintaMixSelected = $("tintaMixSelected");
-const mixTotal = $("mixTotal");
-const mixA = $("mixA");
-const mixB = $("mixB");
-const mixC = $("mixC");
-const mixApplyBtn = $("mixApplyBtn");
-
-let selectedPincelTool = null;
-let selectedTintaId = null;
 
 const TINTA_COLORS = {
   1: "#0000FF",
@@ -120,229 +108,26 @@ const TINTA_COLORS = {
   19: "#FF00FF",
 };
 
-function tintaStorageKey(n) {
-  return `chroma_tinta_color_${n}`;
-}
-
-function tintaMixStorageKey(n) {
-  return `chroma_tinta_mix_${n}`;
-}
-
-function parseM182ToMix(gcode) {
-  const s = String(gcode || "");
-  const ma = /\bA\s*(-?\d+(?:\.\d+)?)\b/i.exec(s);
-  const mb = /\bB\s*(-?\d+(?:\.\d+)?)\b/i.exec(s);
-  const mc = /\bC\s*(-?\d+(?:\.\d+)?)\b/i.exec(s);
-  const a = ma ? Math.round(Number(ma[1])) : null;
-  const b = mb ? Math.round(Number(mb[1])) : null;
-  const c = mc ? Math.round(Number(mc[1])) : null;
-  if (![a, b, c].every((v) => Number.isFinite(v))) return null;
-  return {
-    a: Math.max(0, Math.min(100, a)),
-    b: Math.max(0, Math.min(100, b)),
-    c: Math.max(0, Math.min(100, c)),
-  };
-}
-
-function getTintaMix(n) {
-  const saved = localStorage.getItem(tintaMixStorageKey(n));
-  if (saved) {
-    try {
-      const obj = JSON.parse(saved);
-      const a = Number(obj?.a);
-      const b = Number(obj?.b);
-      const c = Number(obj?.c);
-      if ([a, b, c].every((v) => Number.isFinite(v))) {
-        return {
-          a: Math.max(0, Math.min(100, Math.round(a))),
-          b: Math.max(0, Math.min(100, Math.round(b))),
-          c: Math.max(0, Math.min(100, Math.round(c))),
-        };
-      }
-    } catch {}
-  }
-
-  // Default: parse from current button's data-gcode (ships with initial mixes)
-  if (tintaButtons) {
-    const btn = tintaButtons.querySelector(`button[data-tinta-id="${n}"]`);
-    const g = btn?.getAttribute?.("data-gcode");
-    const mix = parseM182ToMix(g);
-    if (mix) return mix;
-  }
-
-  return { a: 33, b: 33, c: 33 };
-}
-
-function setTintaMix(n, mix) {
-  const a = Number(mix?.a);
-  const b = Number(mix?.b);
-  const c = Number(mix?.c);
-  if (![a, b, c].every((v) => Number.isFinite(v))) return;
-  const obj = {
-    a: Math.max(0, Math.min(100, Math.round(a))),
-    b: Math.max(0, Math.min(100, Math.round(b))),
-    c: Math.max(0, Math.min(100, Math.round(c))),
-  };
-  localStorage.setItem(tintaMixStorageKey(n), JSON.stringify(obj));
-}
-
-function buildM182FromMix(mix) {
-  const a = Math.max(0, Math.min(100, Math.round(Number(mix?.a))));
-  const b = Math.max(0, Math.min(100, Math.round(Number(mix?.b))));
-  const c = Math.max(0, Math.min(100, Math.round(Number(mix?.c))));
-  return `M182 A${a} B${b} C${c}`;
-}
-
-function syncMixUi() {
-  if (!tintaMixSelected || !mixA || !mixB || !mixC) return;
-  if (selectedTintaId == null) {
-    tintaMixSelected.textContent = "—";
-    if (mixTotal) mixTotal.textContent = "—";
-    return;
-  }
-  tintaMixSelected.textContent = String(selectedTintaId);
-  const mix = getTintaMix(selectedTintaId);
-  mixA.value = String(mix.a);
-  mixB.value = String(mix.b);
-  mixC.value = String(mix.c);
-  updateMixTotal();
-}
-
-function updateMixTotal() {
-  if (!mixTotal) return;
-  const a = Math.round(Number(mixA?.value));
-  const b = Math.round(Number(mixB?.value));
-  const c = Math.round(Number(mixC?.value));
-  if (![a, b, c].every((v) => Number.isFinite(v))) {
-    mixTotal.textContent = "—";
-    return;
-  }
-  const total = a + b + c;
-  mixTotal.textContent = `${total}%${total === 100 ? "" : " (ajuste)"}`;
-}
-
-if (mixA) mixA.oninput = updateMixTotal;
-if (mixB) mixB.oninput = updateMixTotal;
-if (mixC) mixC.oninput = updateMixTotal;
-
-function getTintaColor(n) {
-  const key = tintaStorageKey(n);
-  const saved = localStorage.getItem(key);
-  if (saved && /^#([0-9a-fA-F]{6})$/.test(saved.trim())) return saved.trim();
-  return TINTA_COLORS[n] || "#ffffff";
-}
-
-function setTintaColor(n, hex) {
-  const v = String(hex || "").trim();
-  if (!/^#([0-9a-fA-F]{6})$/.test(v)) return;
-  localStorage.setItem(tintaStorageKey(n), v);
-}
-
-function pincelStorageKey(tool) {
-  return `chroma_pincel_color_${tool}`;
-}
-
-function getPincelColor(tool) {
-  const saved = localStorage.getItem(pincelStorageKey(tool));
-  if (saved && /^#([0-9a-fA-F]{6})$/.test(saved.trim())) return saved.trim();
-  return null;
-}
-
-function setPincelColor(tool, hex) {
-  const v = String(hex || "").trim();
-  if (!/^#([0-9a-fA-F]{6})$/.test(v)) return;
-  localStorage.setItem(pincelStorageKey(tool), v);
-}
-
-function applyButtonColor(btn, hex) {
-  if (!btn) return;
-  const h = String(hex || "").trim();
-  if (!h) return;
-
-  btn.style.backgroundColor = h;
-
-  const rgb = parseCssColorToRgb(h);
-  if (!rgb) {
-    btn.style.color = "#fff";
-    return;
-  }
-  const { r, g, b } = rgb;
-  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  btn.style.color = lum > 150 ? "#000" : "#fff";
-}
-
-function setPincelButtonColors() {
-  if (!pincelButtons) return;
-  const buttons = pincelButtons.querySelectorAll("button[data-pincel-tool]");
-  buttons.forEach((btn) => {
-    const tool = Number(btn.getAttribute("data-pincel-tool"));
-    if (!Number.isFinite(tool) || tool < 0 || tool > 18) return;
-    const hex = getPincelColor(tool);
-    if (!hex) return;
-    applyButtonColor(btn, hex);
-  });
-}
-
-function parseCssColorToRgb(color) {
-  const s = String(color || "").trim();
-
-  let m = /^#([0-9a-fA-F]{3})$/.exec(s);
-  if (m) {
-    const r = parseInt(m[1][0] + m[1][0], 16);
-    const g = parseInt(m[1][1] + m[1][1], 16);
-    const b = parseInt(m[1][2] + m[1][2], 16);
-    return { r, g, b };
-  }
-
-  m = /^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.exec(s);
-  if (m) {
-    const rgb = m[1];
-    const r = parseInt(rgb.slice(0, 2), 16);
-    const g = parseInt(rgb.slice(2, 4), 16);
-    const b = parseInt(rgb.slice(4, 6), 16);
-    return { r, g, b };
-  }
-
-  m = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d*\.?\d+)\s*)?\)$/.exec(s);
-  if (m) {
-    const r = Math.max(0, Math.min(255, Number(m[1])));
-    const g = Math.max(0, Math.min(255, Number(m[2])));
-    const b = Math.max(0, Math.min(255, Number(m[3])));
-    return { r, g, b };
-  }
-
-  return null;
-}
-
 function setTintaButtonColors() {
   if (!tintaButtons) return;
 
   const buttons = tintaButtons.querySelectorAll("button.round-btn");
   buttons.forEach((btn) => {
-    const n = Number(btn.getAttribute("data-tinta-id") || String(btn.textContent || "").trim());
-    if (!Number.isFinite(n) || n < 1 || n > 19) return;
-    const hex = getTintaColor(n);
+    const n = Number(String(btn.textContent || "").trim());
+    const hex = TINTA_COLORS[n];
+    if (!hex) return;
 
     btn.style.backgroundColor = hex;
 
-    // Force size inline as well (helps when CSS is cached/not applying).
-    btn.style.width = "56px";
-    btn.style.height = "56px";
-    btn.style.minWidth = "56px";
-    btn.style.fontSize = "14px";
-
     // Choose text color (black/white) based on luminance for readability.
-    const rgb = parseCssColorToRgb(hex);
-    if (!rgb) {
-      btn.style.color = "#fff";
-      return;
-    }
-    const { r, g, b } = rgb;
+    const m = /^#?([0-9a-fA-F]{6})$/.exec(hex);
+    if (!m) return;
+    const rgb = m[1];
+    const r = parseInt(rgb.slice(0, 2), 16);
+    const g = parseInt(rgb.slice(2, 4), 16);
+    const b = parseInt(rgb.slice(4, 6), 16);
     const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
     btn.style.color = lum > 150 ? "#000" : "#fff";
-
-    const picker = tintaButtons.querySelector(`input.tinta-color[data-tinta-id="${n}"]`);
-    if (picker && picker.value !== hex) picker.value = hex;
   });
 }
 
@@ -350,7 +135,6 @@ const connectBtn = $("connectBtn");
 const disconnectBtn = $("disconnectBtn");
 const fixedPortLabel = $("fixedPortLabel");
 const updateNowBtn = $("updateNowBtn");
-const updateLog = $("updateLog");
 
 const wifiStatusLabel = $("wifiStatusLabel");
 const wifiScanBtn = $("wifiScanBtn");
@@ -484,8 +268,6 @@ async function initAccountUi() {
 let selectedFilename = "";
 
 let lastStatus;
-
-let lastJobError = "";
 
 let updateBaselineKey;
 
@@ -625,11 +407,8 @@ async function startUpdateWatcher() {
 
 if (updateNowBtn) {
   updateNowBtn.onclick = async () => {
-    const originalLabel = updateNowBtn.textContent;
     updateNowBtn.disabled = true;
-    updateNowBtn.textContent = "Atualizando...";
     try {
-      if (updateLog) updateLog.textContent = "[atualização] iniciando...\n";
       await api("/api/update", { method: "POST", body: JSON.stringify({}) });
       notify("warn", "Atualização iniciada. Aguarde ~30s e recarregue a página.");
     } catch (e) {
@@ -639,46 +418,11 @@ if (updateNowBtn) {
         notify("warn", "Atualização iniciada. Aguarde ~30s e recarregue a página.");
       } else {
         notify("error", `Falha ao atualizar: ${msg || "erro"}`);
-        if (updateLog) updateLog.textContent += `[atualização] falha ao iniciar: ${msg || "erro"}\n`;
       }
     } finally {
       setTimeout(() => {
         updateNowBtn.disabled = false;
-        updateNowBtn.textContent = originalLabel || "Atualizar agora";
       }, 4000);
-    }
-
-    // Show update progress (best-effort)
-    if (updateLog) {
-      const startedAt = Date.now();
-      let failures = 0;
-      let lastNonEmptyLog = updateLog.textContent || "";
-      const tick = async () => {
-        try {
-          const res = await api("/api/update/log");
-          const text = res && typeof res === "object" ? String(res.log || "") : "";
-          if (text && text.trim()) {
-            updateLog.textContent = text;
-            lastNonEmptyLog = text;
-          } else if (lastNonEmptyLog && lastNonEmptyLog.trim()) {
-            // Keep the last meaningful log if the endpoint returns empty temporarily.
-            updateLog.textContent = lastNonEmptyLog;
-          }
-          failures = 0;
-        } catch (e) {
-          failures += 1;
-          if (failures === 1) {
-            const msg = String(e?.message || e || "");
-            updateLog.textContent += `[atualização] aguardando servidor... ${msg ? `(${msg})` : ""}\n`;
-          }
-        }
-
-        // Poll for ~90s (the service may restart the app mid-way)
-        if (Date.now() - startedAt < 90_000) {
-          setTimeout(tick, 1000);
-        }
-      };
-      tick();
     }
   };
 }
@@ -790,18 +534,6 @@ if (pincelButtons) {
       notify("error", "Pincel inválido (use 0 a 18).");
       return;
     }
-
-    selectedPincelTool = tool;
-    const all = pincelButtons.querySelectorAll("button[data-pincel-tool]");
-    all.forEach((b) => b.classList.toggle("active", b === btn));
-
-    // Do not carry the last selected tinta to another pincel.
-    selectedTintaId = null;
-    if (tintaButtons) {
-      const tbuttons = tintaButtons.querySelectorAll("button[data-gcode]");
-      tbuttons.forEach((b) => b.classList.remove("active"));
-    }
-
     wsSend(`T${Math.round(tool)}`);
   };
 }
@@ -811,84 +543,14 @@ if (tintaButtons) {
     const btn = ev?.target?.closest?.("button[data-gcode]");
     if (!btn) return;
 
-    const tintaId = Number(btn.getAttribute("data-tinta-id") || String(btn.textContent || "").trim());
-    if (Number.isFinite(tintaId) && tintaId >= 1 && tintaId <= 19) {
-      selectedTintaId = tintaId;
-      syncMixUi();
-    }
-
-    // Use per-tinta mix if configured.
-    const mix = getTintaMix(selectedTintaId);
-    const gcode = buildM182FromMix(mix);
-    btn.setAttribute("data-gcode", gcode);
+    const raw = String(btn.getAttribute("data-gcode") || "").trim();
+    const gcode = raw.replace(/\.+$/g, "").trim();
     if (!gcode) return;
 
     const buttons = tintaButtons.querySelectorAll("button[data-gcode]");
     buttons.forEach((b) => b.classList.toggle("active", b === btn));
 
     wsSend(gcode);
-
-    if (selectedPincelTool != null && selectedTintaId != null && pincelButtons) {
-      const pincelBtn = pincelButtons.querySelector(`button[data-pincel-tool="${selectedPincelTool}"]`);
-      const hex = getTintaColor(selectedTintaId);
-      setPincelColor(selectedPincelTool, hex);
-      applyButtonColor(pincelBtn, hex);
-    }
-  };
-
-  tintaButtons.oninput = (ev) => {
-    const input = ev?.target?.closest?.("input.tinta-color[data-tinta-id]");
-    if (!input) return;
-
-    const n = Number(input.getAttribute("data-tinta-id"));
-    const hex = String(input.value || "").trim();
-    if (!Number.isFinite(n) || n < 1 || n > 19) return;
-    if (!/^#([0-9a-fA-F]{6})$/.test(hex)) return;
-
-    selectedTintaId = n;
-    syncMixUi();
-    setTintaColor(n, hex);
-    setTintaButtonColors();
-
-    if (selectedPincelTool != null && pincelButtons) {
-      const pincelBtn = pincelButtons.querySelector(`button[data-pincel-tool="${selectedPincelTool}"]`);
-      setPincelColor(selectedPincelTool, hex);
-      applyButtonColor(pincelBtn, hex);
-    }
-  };
-}
-
-if (mixApplyBtn) {
-  mixApplyBtn.onclick = () => {
-    if (selectedTintaId == null) {
-      notify("error", "Selecione uma tinta (1–19) primeiro.");
-      return;
-    }
-
-    const a = Number(mixA?.value);
-    const b = Number(mixB?.value);
-    const c = Number(mixC?.value);
-    if (![a, b, c].every((v) => Number.isFinite(v) && v >= 0 && v <= 100)) {
-      notify("error", "Valores inválidos. Use 0 a 100.");
-      return;
-    }
-
-    const ai = Math.round(a);
-    const bi = Math.round(b);
-    const ci = Math.round(c);
-    const total = ai + bi + ci;
-    if (total !== 100) {
-      notify("error", `O total deve ser 100%. Atual: ${total}%.`);
-      return;
-    }
-
-    setTintaMix(selectedTintaId, { a: ai, b: bi, c: ci });
-
-    if (tintaButtons) {
-      const btn = tintaButtons.querySelector(`button[data-tinta-id="${selectedTintaId}"]`);
-      if (btn) btn.setAttribute("data-gcode", buildM182FromMix({ a: ai, b: bi, c: ci }));
-    }
-    notify("ok", `Mistura aplicada na tinta ${selectedTintaId}.`);
   };
 }
 
@@ -1628,19 +1290,6 @@ function renderStatus(s) {
   hotend.textContent = s.hotend_c == null ? "—" : `${s.hotend_c.toFixed(1)}°C`;
   bed.textContent = s.bed_c == null ? "—" : `${s.bed_c.toFixed(1)}°C`;
 
-  // Surface job errors clearly (preflight failures, timeouts, etc.)
-  try {
-    const err = s && typeof s === "object" ? String(s.job_error || "").trim() : "";
-    if (err && err !== lastJobError) {
-      lastJobError = err;
-      log(`[erro] ${err}`);
-      notify("error", err);
-    }
-    if (!err) lastJobError = "";
-  } catch {
-    // ignore
-  }
-
   const connected = s.connection === "connected";
   const enable = connected;
   for (const el of [
@@ -2036,38 +1685,6 @@ tlRefreshBtn.onclick = async () => {
   }
 };
 
-// ========== Filament sensor UI ==========
-
-async function fetchFilamentStatus() {
-  if (!filamentStatusLabel) return;
-  try {
-    const st = await api("/api/filament/status");
-    if (!st || !st.supported) {
-      const err = st && typeof st === "object" ? String(st.error || "") : "";
-      const short = err ? ` (${err.slice(0, 80)})` : "";
-      filamentStatusLabel.textContent = `Status: indisponível${short}`;
-      return;
-    }
-    if (st.has_filament === true) {
-      filamentStatusLabel.textContent = "Status: com filamento";
-      return;
-    }
-    if (st.has_filament === false) {
-      filamentStatusLabel.textContent = "Status: sem filamento";
-      return;
-    }
-    filamentStatusLabel.textContent = "Status: —";
-  } catch {
-    filamentStatusLabel.textContent = "Status: —";
-  }
-}
-
-function startFilamentPolling() {
-  if (!filamentStatusLabel) return;
-  fetchFilamentStatus();
-  setInterval(fetchFilamentStatus, 1000);
-}
-
 (async function boot() {
   // Check authentication first
   const authenticated = await checkAuth();
@@ -2076,11 +1693,9 @@ function startFilamentPolling() {
   try {
     setActiveTab("print");
     setTintaButtonColors();
-    setPincelButtonColors();
     startUpdateWatcher();
     fetchWifiStatus();
     setInterval(fetchWifiStatus, 10_000);
-    startFilamentPolling();
     await initAccountUi();
     await refreshFiles();
     await refreshTimelapse();

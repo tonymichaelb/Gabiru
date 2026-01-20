@@ -88,7 +88,7 @@ class SerialManager:
 
     async def _send_raw(self, line: str) -> None:
         if not self.is_connected or self._ser is None:
-            raise RuntimeError("Serial not connected")
+            raise RuntimeError("Serial não conectado")
 
         data = (line.strip() + "\n").encode("utf-8", errors="ignore")
         loop = asyncio.get_running_loop()
@@ -98,7 +98,12 @@ class SerialManager:
             self._ser.write(data)
             self._ser.flush()
 
-        await loop.run_in_executor(None, _write)
+        try:
+            await loop.run_in_executor(None, _write)
+        except OSError as e:
+            # I/O error (port disconnected, etc)
+            await self.disconnect()
+            raise RuntimeError(f"Erro na porta serial: {str(e)}")
 
     async def send_and_wait_ok(self, line: str, timeout_s: float = 30.0) -> None:
         """Send a command and wait for 'ok' response.

@@ -100,11 +100,19 @@ class SerialManager:
 
         await loop.run_in_executor(None, _write)
 
-    async def send_and_wait_ok(self, line: str, timeout_s: float = 10.0) -> None:
+    async def send_and_wait_ok(self, line: str, timeout_s: float = 30.0) -> None:
+        """Send a command and wait for 'ok' response.
+        
+        Default timeout is 30s (accommodates temperature preheating).
+        Pass timeout_s explicitly for faster/slower commands.
+        """
         async with self._cmd_lock:
             self._ok_event.clear()
             await self._send_raw(line)
-            await asyncio.wait_for(self._ok_event.wait(), timeout=timeout_s)
+            try:
+                await asyncio.wait_for(self._ok_event.wait(), timeout=timeout_s)
+            except asyncio.TimeoutError:
+                raise TimeoutError(f"Timeout de {timeout_s}s esperando 'ok' para: {line}")
 
     async def read_line(self) -> str:
         return await self._line_queue.get()

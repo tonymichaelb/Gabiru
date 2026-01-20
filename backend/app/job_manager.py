@@ -184,12 +184,18 @@ class JobManager:
                 self.info.progress = (idx + 1) / total
                 continue
 
+            # Temperature commands (M104, M109, M140, M190) need longer timeout (bed/nozzle heating).
+            # Use 60s timeout for these, 30s for others.
+            is_temp_cmd = any(upper.startswith(prefix) for prefix in ("M104", "M109", "M140", "M190", "M109", "M106"))
+            timeout_s = 60.0 if is_temp_cmd else 30.0
+
             try:
-                await self._serial.send_and_wait_ok(line)
+                await self._serial.send_and_wait_ok(line, timeout_s=timeout_s)
             except Exception as e:
                 # Error state LED: red
                 await self._set_led_rgb_best_effort(255, 0, 0)
-                self.info = JobInfo(state=JobState.idle, filename=self.info.filename, error=f"Falha na impressão: {e}")
+                error_msg = str(e).strip() or "Erro desconhecido ao enviar comando"
+                self.info = JobInfo(state=JobState.idle, filename=self.info.filename, error=f"Falha na impressão: {error_msg}")
                 return
             self.info.progress = (idx + 1) / total
 

@@ -14,16 +14,24 @@ echo "[1/6] Instalando dependências do sistema..."
 apt-get update -y
 apt-get install -y python3 python3-venv python3-pip git curl unzip rsync
 
-# Wi-Fi setup / hotspot fallback (best-effort)
+# Configuração de Wi-Fi e hotspot (esforço máximo)
 apt-get install -y network-manager || true
 
-# Timelapse prerequisites (best-effort; packages vary by distro/release)
+# Pré-requisitos para timelapse (esforço máximo; pacotes variam por distro/versão)
 apt-get install -y ffmpeg || true
 apt-get install -y libcamera-apps || true
 apt-get install -y fswebcam || true
 
 echo "[2/6] Criando diretórios..."
-mkdir -p "$APP_DIR"
+if [[ -d "$APP_DIR/.git" ]]; then
+	# Repositório já existe, atualizando
+	chown -R pi:pi "$APP_DIR"
+else
+	# Remove diretório antigo se existir (de instalações que falharam)
+	rm -rf "$APP_DIR"
+	mkdir -p "$APP_DIR"
+	chown pi:pi "$APP_DIR"
+fi
 
 echo "[3/6] Obtendo código do GitHub..."
 if [[ -d "$APP_DIR/.git" ]]; then
@@ -31,7 +39,6 @@ if [[ -d "$APP_DIR/.git" ]]; then
 	sudo -u pi git -C "$APP_DIR" checkout "$BRANCH"
 	sudo -u pi git -C "$APP_DIR" pull --ff-only
 else
-	rm -rf "$APP_DIR"/*
 	sudo -u pi git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 

@@ -51,7 +51,7 @@ class SerialManager:
             loop = asyncio.get_running_loop()
 
             def _open() -> serial.Serial:
-                return serial.Serial(port=port, baudrate=baudrate, timeout=0.1)
+                return serial.Serial(port=port, baudrate=baudrate, timeout=1.0)
 
             self._ser = await loop.run_in_executor(None, _open)
             self.state.port = port

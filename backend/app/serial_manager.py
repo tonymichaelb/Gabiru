@@ -143,6 +143,11 @@ class SerialManager:
 
             # Basic protocol handling
             lower = line.lower()
+            # Ignore standalone "echo:" lines (they often contain errors or status but aren't command responses).
+            # Only treat lines with "ok" as real command completion.
+            if lower.startswith("echo:") and "ok" not in lower:
+                continue
+
             if lower == "ok" or lower.startswith("ok "):
                 self._ok_event.set()
                 continue

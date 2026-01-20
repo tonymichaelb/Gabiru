@@ -192,6 +192,13 @@ class JobManager:
                     self.info.progress = (idx + 1) / total
                     continue
 
+            # Skip commands that many printers don't support (e.g., M73 from PrusaSlicer/Cura for progress display).
+            # These would cause "Unknown command" but are non-critical.
+            upper = line.upper()
+            if upper in {"M73", "M117"}:
+                self.info.progress = (idx + 1) / total
+                continue
+
             try:
                 await self._serial.send_and_wait_ok(line)
             except Exception as e:

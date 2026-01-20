@@ -195,13 +195,11 @@ class JobManager:
                 continue
 
             # Temperature commands (M104, M109, M140, M190) need longer timeout (bed/nozzle heating).
-            # Movement commands (G28, G29) also need longer timeout (homing/leveling can be slow).
-            # Use 120s for homing/leveling, 60s for temperature, 30s for others.
+            # Movement commands (G0, G1, G28, G29) need longer timeout (movements can be slow).
+            # Use 180s (3 minutos) para todos os comandos que podem ser lentos.
             upper = line.upper()
-            if any(upper.startswith(prefix) for prefix in ("G28", "G29")):
-                timeout_s = 120.0
-            elif any(upper.startswith(prefix) for prefix in ("M104", "M109", "M140", "M190")):
-                timeout_s = 60.0
+            if any(upper.startswith(prefix) for prefix in ("G0", "G1", "G28", "G29", "M104", "M109", "M140", "M190")):
+                timeout_s = 180.0
             else:
                 timeout_s = 30.0
 

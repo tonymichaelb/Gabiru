@@ -27,12 +27,12 @@ mkdir -p "$APP_DIR"
 
 echo "[3/6] Obtendo código do GitHub..."
 if [[ -d "$APP_DIR/.git" ]]; then
-	git -C "$APP_DIR" fetch --prune
-	git -C "$APP_DIR" checkout "$BRANCH"
-	git -C "$APP_DIR" pull --ff-only
+	sudo -u pi git -C "$APP_DIR" fetch --prune
+	sudo -u pi git -C "$APP_DIR" checkout "$BRANCH"
+	sudo -u pi git -C "$APP_DIR" pull --ff-only
 else
 	rm -rf "$APP_DIR"/*
-	git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
+	sudo -u pi git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 
 echo "[4/6] Criando venv e instalando requirements..."

@@ -195,22 +195,13 @@ class JobManager:
                 continue
 
             # Timeouts customizados por tipo de comando
-            # G28/G29: homing/leveling - 120s
-            # G0/G1: movimentos normais - 60s
-            # M104/M109/M140/M190: temperatura - 90s
-            # M106/M107: ventilador - 10s
-            # Outros: 30s
+            # G28/G29: homing/leveling - indefinido
+            # G0/G1: movimentos normais - indefinido
+            # M104/M109/M140/M190: temperatura - indefinido
+            # M106/M107: ventilador - indefinido
+            # Outros: indefinido (sem limite)
             upper = line.upper()
-            if any(upper.startswith(prefix) for prefix in ("G28", "G29")):
-                timeout_s = 120.0
-            elif any(upper.startswith(prefix) for prefix in ("G0", "G1")):
-                timeout_s = 60.0
-            elif any(upper.startswith(prefix) for prefix in ("M104", "M109", "M140", "M190")):
-                timeout_s = 90.0
-            elif any(upper.startswith(prefix) for prefix in ("M106", "M107")):
-                timeout_s = 10.0
-            else:
-                timeout_s = 30.0
+            timeout_s = 9999999.0  # Praticamente infinito, sem limite real
 
             try:
                 await self._serial.send_and_wait_ok(line, timeout_s=timeout_s)

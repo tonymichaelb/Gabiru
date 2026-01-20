@@ -190,7 +190,7 @@ class JobManager:
             # Skip commands that many printers don't support (e.g., M73 from PrusaSlicer/Cura for progress display).
             # These would cause "Unknown command" but are non-critical.
             upper = line.upper()
-            if upper in {"M73", "M117"}:
+            if any(upper.startswith(prefix) for prefix in ("M73", "M117")):
                 self.info.progress = (idx + 1) / total
                 continue
 

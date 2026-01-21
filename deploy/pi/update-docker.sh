@@ -13,14 +13,20 @@ docker compose down || true
 echo "[2/5] Atualizando código do GitHub..."
 git pull
 
-echo "[3/5] Buildando nova imagem Docker localmente..."
-docker build -t tonymichael/gabiru:latest .
+echo "[3/5] Limpando cache de build..."
+docker builder prune -af
 
-echo "[4/5] Limpando imagens antigas..."
-docker image prune -f
+echo "[4/5] Buildando nova imagem Docker (SEM CACHE)..."
+docker build --no-cache --pull -t tonymichael/gabiru:latest .
 
 echo "[5/5] Iniciando container com nova imagem..."
 docker compose up -d
 
-echo "✅ Atualização completa! Verifique os logs:"
-echo "   docker logs -f gabiru"
+echo ""
+echo "✅ Atualização completa!"
+echo ""
+echo "Verificando container:"
+docker ps | grep gabiru || echo "⚠️  Container não rodando!"
+echo ""
+echo "Para ver logs: docker logs -f gabiru"
+echo "Acesse: http://$(hostname -I | awk '{print $1}'):8080"

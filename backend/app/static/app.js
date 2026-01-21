@@ -85,6 +85,12 @@ const panelSystem = $("panelSystem");
 
 const pincelButtons = $("pincelButtons");
 const tintaButtons = $("tintaButtons");
+const limparTintaBtn = $("limparTintaBtn");
+const resetarPincelBtn = $("resetarPincelBtn");
+const purgarBtn = $("purgarBtn");
+const activePincelStatus = $("activePincelStatus");
+const activeTintaStatus = $("activeTintaStatus");
+const colorirConnectionStatus = $("colorirConnectionStatus");
 
 const TINTA_COLORS = {
   1: "#0000FF",
@@ -268,6 +274,10 @@ async function initAccountUi() {
 let selectedFilename = "";
 
 let lastStatus;
+
+// Estado do sistema Colorir
+let activeTool = null; // Pincel ativo (0-18)
+let activeTinta = null; // Última tinta selecionada (1-19)
 
 let updateBaselineKey;
 
@@ -513,15 +523,17 @@ if (wifiScanBtn && wifiConnectBtn) {
   };
 }
 
-function wsSend(command) {
+function wsSend(command, skipLog = false) {
   const c = String(command || "").trim();
-  if (!c) return;
+  if (!c) return false;
   if (!wsReady()) {
+    notify("error", "WebSocket não conectado. Conecte a impressora primeiro.");
     log("[erro] WebSocket não conectado");
-    return;
+    return false;
   }
-  log(`> ${c}`);
+  if (!skipLog) log(`> ${c}`);
   ws.send(JSON.stringify({ type: "send", command: c }));
+  return true;
 }
 
 if (pincelButtons) {
@@ -534,7 +546,14 @@ if (pincelButtons) {
       notify("error", "Pincel inválido (use 0 a 18).");
       return;
     }
-    wsSend(`T${Math.round(tool)}`);
+    
+    if (!wsSend(`T${Math.round(tool)}`)) return;
+    
+    // Atualizar indicador visual
+    activeTool = Math.round(tool);
+    const buttons = pincelButtons.querySelectorAll("button[data-pincel-tool]");
+    buttons.forEach((b) => b.classList.toggle("active", b === btn));
+    updateColorirStatus();
   };
 }
 
@@ -547,11 +566,83 @@ if (tintaButtons) {
     const gcode = raw.replace(/\.+$/g, "").trim();
     if (!gcode) return;
 
+    if (!wsSend(gcode)) return;
+    
+    // Atualizar indicador visual
+    const tintaNum = Number(btn.textContent);
+    if (Number.isFinite(tintaNum)) activeTinta = tintaNum;
+    
     const buttons = tintaButtons.querySelectorAll("button[data-gcode]");
     buttons.forEach((b) => b.classList.toggle("active", b === btn));
-
-    wsSend(gcode);
+    updateColorirStatus();
   };
+}
+
+// Controles de Colorir
+if (limparTintaBtn) {
+  limparTintaBtn.onclick = () => {
+    if (!wsSend("M182 A0 B0 C0")) return;
+    activeTinta = null;
+    updateColorirStatus();
+    // Limpar seleção visual de tintas
+    const buttons = tintaButtons?.querySelectorAll("button[data-gcode]");
+    buttons?.forEach((b) => b.classList.remove("active"));
+  };
+}
+
+if (resetarPincelBtn) {
+  resetarPincelBtn.onclick = () => {
+    if (!wsSend("T0")) return;
+    activeTool = 0;
+    updateColorirStatus();
+    // Atualizar seleção visual de pincéis
+    const buttons = pincelButtons?.querySelectorAll("button[data-pincel-tool]");
+    buttons?.forEach((b) => b.classList.toggle("active", b.getAttribute("data-pincel-tool") === "0"));
+  };
+}
+
+if (purgarBtn) {
+  purgarBtn.onclick = () => {
+    if (!wsReady()) {
+      notify("error", "Conecte a impressora primeiro.");
+      return;
+    }
+    // Purgar 50mm de filamento a 300mm/min (5mm/s)
+    wsSendMany(["G91", "M83", "G1 E50 F300", "M82", "G90"]);
+  };
+}
+
+function updateColorirStatus() {
+  // Atualizar status do pincel ativo
+  if (activePincelStatus) {
+    if (activeTool != null) {
+      activePincelStatus.textContent = `✓ Pincel ${activeTool} ativo`;
+      activePincelStatus.style.color = "#10b981";
+    } else {
+      activePincelStatus.textContent = "";
+    }
+  }
+  
+  // Atualizar status da tinta ativa
+  if (activeTintaStatus) {
+    if (activeTinta != null) {
+      activeTintaStatus.textContent = `✓ Tinta ${activeTinta} selecionada`;
+      activeTintaStatus.style.color = "#10b981";
+    } else {
+      activeTintaStatus.textContent = "";
+    }
+  }
+  
+  // Atualizar status de conexão
+  if (colorirConnectionStatus) {
+    if (wsReady()) {
+      colorirConnectionStatus.textContent = "✓ Conectado e pronto";
+      colorirConnectionStatus.style.color = "#10b981";
+    } else {
+      colorirConnectionStatus.textContent = "⚠️ Aguardando conexão...";
+      colorirConnectionStatus.style.color = "#f59e0b";
+    }
+  }
 }
 
 // Movimento / calibração
@@ -1476,6 +1567,7 @@ function connectWs() {
   ws.onopen = () => {
     log("[ws] conectado");
     ws.send(JSON.stringify({ type: "poll" }));
+    updateColorirStatus();
   };
 
   ws.onmessage = (ev) => {
@@ -1492,6 +1584,7 @@ function connectWs() {
 
   ws.onclose = () => {
     log("[ws] desconectado; tentando novamente...");
+    updateColorirStatus();
     setTimeout(connectWs, 1000);
   };
 }

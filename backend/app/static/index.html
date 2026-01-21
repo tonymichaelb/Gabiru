@@ -244,7 +244,7 @@
       </div>
 
       <div class="muted" style="margin-top: 8px; font-size: 12px;">
-        Seleciona a entrada (G-code T0–T18). Requer conexão no WebSocket.
+        Seleciona a entrada (G-code T0–T18). <span id="activePincelStatus" style="font-weight: 600; color: #3b82f6;"></span>
       </div>
     </section>
 
@@ -272,7 +272,17 @@
         <button type="button" class="secondary round-btn" data-gcode="M182 A20 B10 C70">19</button>
       </div>
       <div class="muted" style="margin-top: 8px; font-size: 12px;">
-        Clique para enviar o comando M182 correspondente.
+        Clique para enviar o comando M182 correspondente. <span id="activeTintaStatus" style="font-weight: 600; color: #3b82f6;"></span>
+      </div>
+      
+      <!-- Controles de Colorir -->
+      <div class="row" style="margin-top: 16px; gap: 8px;">
+        <button type="button" class="secondary" id="limparTintaBtn" title="Limpar tinta atual (M182 A0 B0 C0)">🧹 Limpar Tinta</button>
+        <button type="button" class="secondary" id="resetarPincelBtn" title="Voltar ao pincel padrão (T0)">🔄 Resetar Pincel</button>
+        <button type="button" class="secondary" id="purgarBtn" title="Purgar filamento (G1 E50 F300)">💧 Purgar (50mm)</button>
+      </div>
+      <div id="colorirConnectionStatus" class="muted" style="margin-top: 8px; font-size: 12px; text-align: center;">
+        ⚠️ Aguardando conexão...
       </div>
     </section>
 

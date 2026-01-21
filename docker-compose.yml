@@ -2,15 +2,14 @@ version: '3.8'
 
 services:
   gabiru:
-    build: .
+    image: tonymichael/gabiru:latest
     container_name: gabiru
-    ports:
-      - "8080:8080"
+    network_mode: host  # Necessário para Wi-Fi (nmcli) e acesso completo à rede
     volumes:
       - gabiru-data:/app/data
-      - /dev/ttyACM0:/dev/ttyACM0  # Porta serial da impressora
-    devices:
-      - /dev/ttyACM0  # Permitir acesso ao dispositivo serial
+      - /dev:/dev  # Acesso a todos os dispositivos (serial, GPIO)
+      - /sys:/sys  # Necessário para GPIO
+      - /run/dbus:/run/dbus:ro  # Necessário para NetworkManager (Wi-Fi)
     environment:
       - TZ=America/Sao_Paulo
     restart: unless-stopped

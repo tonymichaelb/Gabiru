@@ -81,6 +81,12 @@ button {
 }
 
 button.secondary { background: var(--btn-secondary); color: var(--btn-secondary-fg); border-color: var(--border); }
+button.secondary.active { 
+	background: var(--fg); 
+	color: var(--bg); 
+	border-color: var(--fg);
+	font-weight: 600;
+}
 button.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 

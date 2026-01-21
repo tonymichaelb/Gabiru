@@ -2,12 +2,12 @@
 set -euo pipefail
 
 # Script para atualizar o Gabiru via Docker no Raspberry Pi
-# Uso: sudo bash deploy/pi/update-docker.sh
+# Uso: sudo bash deploy/pi/update-docker.sh (rode de dentro do diretório /opt/Gabiru ou /opt/gabiru)
 
-REPO_DIR="/opt/gabiru"
+# Usa o diretório atual ao invés de hardcoded
+REPO_DIR="$(pwd)"
 
 echo "[1/5] Parando container atual..."
-cd "$REPO_DIR"
 docker compose down || true
 
 echo "[2/5] Atualizando código do GitHub..."

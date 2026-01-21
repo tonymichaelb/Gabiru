@@ -92,6 +92,12 @@ const purgarBtn = $("purgarBtn");
 const activePincelStatus = $("activePincelStatus");
 const activeTintaStatus = $("activeTintaStatus");
 const colorirConnectionStatus = $("colorirConnectionStatus");
+const mixSelectedLabel = $("mixSelectedLabel");
+const mixInputA = $("mixInputA");
+const mixInputB = $("mixInputB");
+const mixInputC = $("mixInputC");
+const mixApplyBtn = $("mixApplyBtn");
+const mixTotalLabel = $("mixTotalLabel");
 
 const TINTA_COLORS = {
   1: "#0000FF",
@@ -370,6 +376,58 @@ function wsReady() {
   return ws && ws.readyState === WebSocket.OPEN;
 }
 
+function getTintaButtonByNumber(n) {
+  if (!tintaButtons) return null;
+  return tintaButtons.querySelector(`button[data-gcode]:nth-child(${n})`) || tintaButtons.querySelector(`button[data-gcode][data-index='${n}']`);
+}
+
+function parseMixValue(raw, fallback) {
+  const v = Number(raw);
+  if (!Number.isFinite(v)) return fallback;
+  return Math.min(100, Math.max(0, Math.round(v)));
+}
+
+function updateMixTotalLabel() {
+  if (!mixTotalLabel || !mixInputA || !mixInputB || !mixInputC) return;
+  const a = parseMixValue(mixInputA.value, 0);
+  const b = parseMixValue(mixInputB.value, 0);
+  const c = parseMixValue(mixInputC.value, 0);
+  const total = a + b + c;
+  mixTotalLabel.textContent = `Total: ${total}%`;
+  mixTotalLabel.style.color = total === 100 ? "#10b981" : "#f59e0b";
+}
+
+function setMixSelectedLabel() {
+  if (!mixSelectedLabel) return;
+  mixSelectedLabel.textContent = activeTinta != null ? `Tinta: ${activeTinta}` : "Tinta: —";
+}
+
+function populateMixFromButton(btn) {
+  if (!btn || !mixInputA || !mixInputB || !mixInputC) return;
+  const a = parseMixValue(btn.getAttribute("data-a"), 33);
+  const b = parseMixValue(btn.getAttribute("data-b"), 33);
+  const c = parseMixValue(btn.getAttribute("data-c"), 34);
+  mixInputA.value = String(a);
+  mixInputB.value = String(b);
+  mixInputC.value = String(c);
+  updateMixTotalLabel();
+  setMixSelectedLabel();
+}
+
+function syncMixToSelection() {
+  if (activeTinta == null) {
+    setMixSelectedLabel();
+    return;
+  }
+  const buttons = tintaButtons?.querySelectorAll("button[data-gcode]") || [];
+  let target = null;
+  buttons.forEach((b) => {
+    const n = Number(b.textContent);
+    if (Number.isFinite(n) && n === activeTinta) target = b;
+  });
+  if (target) populateMixFromButton(target);
+}
+
 function showUpdateBanner({ version, build } = {}) {
   if (!updateBanner) return;
   const v = version ? String(version) : "";
@@ -608,6 +666,7 @@ if (tintaButtons) {
     
     const buttons = tintaButtons.querySelectorAll("button[data-gcode]");
     buttons.forEach((b) => b.classList.toggle("active", b === btn));
+    populateMixFromButton(btn);
     updateColorirStatus();
   };
 }
@@ -646,6 +705,44 @@ if (purgarBtn) {
   };
 }
 
+// Mistura de tintas (A/B/C)
+if (mixInputA) mixInputA.oninput = updateMixTotalLabel;
+if (mixInputB) mixInputB.oninput = updateMixTotalLabel;
+if (mixInputC) mixInputC.oninput = updateMixTotalLabel;
+
+if (mixApplyBtn) {
+  mixApplyBtn.onclick = () => {
+    if (activeTinta == null) {
+      notify("error", "Selecione uma tinta (1–19) antes de aplicar.");
+      return;
+    }
+
+    const a = parseMixValue(mixInputA?.value, 0);
+    const b = parseMixValue(mixInputB?.value, 0);
+    const c = parseMixValue(mixInputC?.value, 0);
+    const total = a + b + c;
+    updateMixTotalLabel();
+
+    if (total !== 100) {
+      notify("error", "O total A/B/C precisa somar 100%.");
+      return;
+    }
+
+    const gcode = `M182 A${a} B${b} C${c}`;
+    if (!wsSend(gcode)) return;
+
+    // Atualiza o botão da tinta selecionada com os novos valores
+    const btn = getTintaButtonByNumber(activeTinta);
+    if (btn) {
+      btn.setAttribute("data-a", String(a));
+      btn.setAttribute("data-b", String(b));
+      btn.setAttribute("data-c", String(c));
+      btn.setAttribute("data-gcode", gcode);
+    }
+    updateColorirStatus();
+  };
+}
+
 function updateColorirStatus() {
   // Atualizar status do pincel ativo
   if (activePincelStatus) {
@@ -677,6 +774,10 @@ function updateColorirStatus() {
       colorirConnectionStatus.style.color = "#f59e0b";
     }
   }
+
+  // Atualizar rótulos de mistura
+  setMixSelectedLabel();
+  updateMixTotalLabel();
 }
 
 // Movimento / calibração

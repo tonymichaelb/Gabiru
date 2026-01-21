@@ -245,38 +245,47 @@
       </div>
 
       <div class="muted" style="margin-top: 8px; font-size: 12px;">
-        Seleciona a entrada (G-code T0–T18). <span id="activePincelStatus" style="font-weight: 600; color: #3b82f6;"></span>
+        Selecione um pincel para trabalhar. Requer conexão no WebSocket. <span id="activePincelStatus" style="font-weight: 600; color: #3b82f6;"></span>
+      </div>
+
+      <div class="card" style="margin-top: 12px; background: #0f172a0d;">
+        <h3 style="margin-top: 0;">Ajuda</h3>
+        <div class="muted" style="font-size: 12px; line-height: 1.4;">
+          1) Clique em um Pincel (0–18) para selecionar onde vai aplicar a cor.<br />
+          2) Clique em uma Tinta (1–19) para escolher a cor/mistura daquela tinta.<br />
+          3) Para trocar a cor de uma tinta, use o painel de Mistura abaixo.<br />
+          4) O total A/B/C precisa somar 100% (aplica via M182).
+        </div>
       </div>
     </section>
 
     <section class="card">
-      <h2>Tintas (M182)</h2>
+      <h2>Tintas</h2>
       <div class="row" id="tintaButtons" aria-label="Tintas (M182)">
-        <button type="button" class="secondary round-btn" data-gcode="M182 A0 B0 C100">1</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A100 B0 C0">2</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A0 B100 C0">3</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A80 B0 C20">4</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A90 B0 C10">5</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A40 B0 C60">6</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A15 B0 C85">7</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A20 B10 C70">8</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A0 B40 C60">9</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A0 B25 C75">10</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A10 B80 C10">11</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A50 B50 C0">12</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A70 B20 C10">13</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A33 B33 C34">14</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A85 B0 C15">15</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A20 B0 C80">16</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A70 B10 C20">17</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A33 B33 C34">18</button>
-        <button type="button" class="secondary round-btn" data-gcode="M182 A20 B10 C70">19</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A0 B0 C100" data-a="0" data-b="0" data-c="100">1</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A100 B0 C0" data-a="100" data-b="0" data-c="0">2</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A0 B100 C0" data-a="0" data-b="100" data-c="0">3</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A80 B0 C20" data-a="80" data-b="0" data-c="20">4</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A90 B0 C10" data-a="90" data-b="0" data-c="10">5</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A40 B0 C60" data-a="40" data-b="0" data-c="60">6</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A15 B0 C85" data-a="15" data-b="0" data-c="85">7</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A20 B10 C70" data-a="20" data-b="10" data-c="70">8</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A0 B40 C60" data-a="0" data-b="40" data-c="60">9</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A0 B25 C75" data-a="0" data-b="25" data-c="75">10</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A10 B80 C10" data-a="10" data-b="80" data-c="10">11</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A50 B50 C0" data-a="50" data-b="50" data-c="0">12</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A70 B20 C10" data-a="70" data-b="20" data-c="10">13</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A33 B33 C34" data-a="33" data-b="33" data-c="34">14</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A85 B0 C15" data-a="85" data-b="0" data-c="15">15</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A20 B0 C80" data-a="20" data-b="0" data-c="80">16</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A70 B10 C20" data-a="70" data-b="10" data-c="20">17</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A33 B33 C34" data-a="33" data-b="33" data-c="34">18</button>
+        <button type="button" class="secondary round-btn" data-gcode="M182 A20 B10 C70" data-a="20" data-b="10" data-c="70">19</button>
       </div>
       <div class="muted" style="margin-top: 8px; font-size: 12px;">
-        Clique para enviar o comando M182 correspondente. <span id="activeTintaStatus" style="font-weight: 600; color: #3b82f6;"></span>
+        Clique para selecionar e aplicar uma tinta. <span id="activeTintaStatus" style="font-weight: 600; color: #3b82f6;"></span>
       </div>
-      
-      <!-- Controles de Colorir -->
+
       <div class="row" style="margin-top: 16px; gap: 8px;">
         <button type="button" class="secondary" id="limparTintaBtn" title="Limpar tinta atual (M182 A0 B0 C0)">🧹 Limpar Tinta</button>
         <button type="button" class="secondary" id="resetarPincelBtn" title="Voltar ao pincel padrão (T0)">🔄 Resetar Pincel</button>
@@ -284,6 +293,31 @@
       </div>
       <div id="colorirConnectionStatus" class="muted" style="margin-top: 8px; font-size: 12px; text-align: center;">
         ⚠️ Aguardando conexão...
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Mistura</h2>
+      <div class="muted" style="font-size: 12px;">Selecione uma tinta (1–19) para ajustar A (azul), B (vermelho), C (amarelo) em %.</div>
+      <div class="row" style="align-items: flex-end; gap: 10px; margin-top: 10px;">
+        <div class="muted" id="mixSelectedLabel" style="min-width: 90px;">Tinta: —</div>
+        <label>
+          A (azul) %
+          <input id="mixInputA" type="number" min="0" max="100" step="1" value="33" />
+        </label>
+        <label>
+          B (vermelho) %
+          <input id="mixInputB" type="number" min="0" max="100" step="1" value="33" />
+        </label>
+        <label>
+          C (amarelo) %
+          <input id="mixInputC" type="number" min="0" max="100" step="1" value="34" />
+        </label>
+        <button type="button" id="mixApplyBtn" class="secondary">Aplicar na tinta</button>
+      </div>
+      <div class="muted" id="mixTotalLabel" style="margin-top: 6px; font-size: 12px;">Total: —</div>
+      <div class="muted" style="margin-top: 6px; font-size: 12px;">
+        Isso atualiza a tinta selecionada (o que ela aplica quando você clicar nela).
       </div>
     </section>
 

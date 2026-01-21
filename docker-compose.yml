@@ -9,11 +9,17 @@ services:
       - gabiru-data:/app/data
       - /dev:/dev  # Acesso a todos os dispositivos (serial, GPIO)
       - /sys:/sys  # Necessário para GPIO
-      - /run/dbus:/run/dbus:ro  # Necessário para NetworkManager (Wi-Fi)
+      - /run/dbus:/run/dbus  # Necessário para NetworkManager (Wi-Fi) - SEM :ro pra permitir write
+      - /var/run/dbus:/var/run/dbus  # Fallback para D-Bus
+      - /etc/NetworkManager:/etc/NetworkManager:ro  # Configurações do NetworkManager
     environment:
       - TZ=America/Sao_Paulo
+      - DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
     restart: unless-stopped
     privileged: true  # Necessário para acesso ao GPIO e serial
+    cap_add:
+      - NET_ADMIN  # Necessário para gerenciar rede
+      - SYS_ADMIN  # Necessário para NetworkManager
 
 volumes:
   gabiru-data:

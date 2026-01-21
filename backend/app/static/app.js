@@ -73,6 +73,7 @@ const $ = (id) => document.getElementById(id);
 
 const terminal = $("terminal");
 const connStatus = $("connStatus");
+const filamentStatus = $("filamentStatus");
 
 const tabPrint = $("tabPrint");
 const tabMotion = $("tabMotion");
@@ -456,6 +457,39 @@ async function fetchWifiStatus() {
     return st;
   } catch {
     wifiStatusLabel.textContent = "Status: —";
+    return null;
+  }
+}
+
+async function fetchFilamentStatus() {
+  if (!filamentStatus) return null;
+  try {
+    const st = await api("/api/filament/status");
+    if (!st || !st.supported) {
+      filamentStatus.textContent = "Sensor: indisponível";
+      filamentStatus.style.color = "#94a3b8";
+      filamentStatus.title = st?.error || "Sensor de filamento não suportado neste ambiente";
+      return st;
+    }
+    
+    if (st.has_filament === true) {
+      filamentStatus.textContent = "✓ Filamento OK";
+      filamentStatus.style.color = "#10b981";
+      filamentStatus.title = "Sensor detecta filamento presente";
+    } else if (st.has_filament === false) {
+      filamentStatus.textContent = "⚠️ SEM FILAMENTO";
+      filamentStatus.style.color = "#ef4444";
+      filamentStatus.title = "Sensor detecta falta de filamento!";
+    } else {
+      filamentStatus.textContent = "Sensor: ?";
+      filamentStatus.style.color = "#f59e0b";
+      filamentStatus.title = st.error || "Sensor sem leitura";
+    }
+    return st;
+  } catch (e) {
+    filamentStatus.textContent = "Sensor: erro";
+    filamentStatus.style.color = "#94a3b8";
+    filamentStatus.title = String(e?.message || e || "Erro ao consultar sensor");
     return null;
   }
 }
@@ -1789,6 +1823,8 @@ tlRefreshBtn.onclick = async () => {
     startUpdateWatcher();
     fetchWifiStatus();
     setInterval(fetchWifiStatus, 10_000);
+    fetchFilamentStatus();
+    setInterval(fetchFilamentStatus, 10_000);
     await initAccountUi();
     await refreshFiles();
     await refreshTimelapse();

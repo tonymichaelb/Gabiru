@@ -626,16 +626,20 @@ async def api_timelapse_video(name: str) -> FileResponse:
 @app.get("/api/timelapse/live")
 async def api_timelapse_live() -> FileResponse:
     path = timelapse_manager.latest_frame_path()
-    if path is None or not path.exists() or not path.is_file():
+    if path is not None and path.exists() and path.is_file():
+        return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+    
+    try:
+        path = await timelapse_manager.capture_preview_frame()
+        if path and path.exists() and path.is_file():
+            return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+    except Exception as e:
         try:
-            path = await timelapse_manager.capture_preview_frame()
-        except Exception as e:
-            try:
-                print(f"[camera] live preview failed: {e}")
-            except Exception:
-                pass
-            raise HTTPException(status_code=404, detail=f"Live preview failed: {e}")
-    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+            print(f"[camera] live preview failed: {e}")
+        except Exception:
+            pass
+    
+    raise HTTPException(status_code=404, detail="Camera not available or timelapse not started")
 
 
 def _make_status() -> StatusResponse:
